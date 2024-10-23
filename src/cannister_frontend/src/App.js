@@ -16,9 +16,6 @@ const bytesToHex = (buffer) => {
   ).join('');
 };
 
-// Set the local Internet Identity URL and canister ID
-const II_URL = `http://127.0.0.1:4943/?canisterId=ctiya-peaaa-aaaaa-qaaja-cai`;
-
 // Template function for rendering the app
 const appTemplate = (onLoginClick, onAppClick, isAuthenticated, agentData, delegationData) => html`
   <main>
@@ -55,7 +52,7 @@ class App {
 
       // Start the login process with session key in URL
       authClient.login({
-        identityProvider: `${II_URL}&sessionkey=${sessionKey}`,
+        identityProvider: `https://identity.ic0.app?sessionkey=${sessionKey}`,
         onSuccess: async () => {
           const identity = authClient.getIdentity();
           this.isAuthenticated = true;
