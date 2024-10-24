@@ -2,8 +2,11 @@ const path = require("path");
 const webpack = require("webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const TerserPlugin = require("terser-webpack-plugin");
-const dfxConfig = require("./dfx.json");
+const CopyPlugin = require("copy-webpack-plugin");
 
+const network =
+    process.env.DFX_NETWORK ||
+    (process.env.NODE_ENV === "production" ? "ic" : "local");
 function initCanisterEnv() {
   let localCanisters, prodCanisters;
   try {
@@ -21,10 +24,6 @@ function initCanisterEnv() {
     console.log("No production canister_ids.json found. Continuing with local");
   }
 
-  const network =
-    process.env.DFX_NETWORK ||
-    (process.env.NODE_ENV === "production" ? "ic" : "local");
-
   const canisterConfig = network === "local" ? localCanisters : prodCanisters;
 
   return Object.entries(canisterConfig).reduce((prev, current) => {
@@ -38,13 +37,11 @@ const canisterEnvVariables = initCanisterEnv();
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 
-// Updated for new default with dfx 0.12.x
-const REPLICA_PORT =
-  dfxConfig.networks?.local?.bind?.split(":")[1] ??
-  process.env.DFX_REPLICA_PORT ??
-  "4943";
+const internetIdentityUrl = network === "local" ? `http://${canisterEnvVariables["INTERNET_IDENTITY_CANISTER_ID"]}.localhost:4943/` : `https://identity.ic0.app`
 
-const asset_entry = path.join("www", "src");
+const frontendDirectory = "greet_frontend";
+
+const frontend_entry = path.join("src", frontendDirectory, "src", "index.html");
 
 module.exports = {
   target: "web",
@@ -52,7 +49,7 @@ module.exports = {
   entry: {
     // The frontend.entrypoint points to the HTML file for this build, so we need
     // to replace the extension to `.js`.
-    index: path.join(__dirname, "src", asset_entry, "index.html").replace(/\.html$/, ".ts"),
+    index: path.join(__dirname, frontend_entry).replace(/\.html$/, ".js"),
   },
   devtool: isDevelopment ? "source-map" : false,
   optimization: {
@@ -71,7 +68,7 @@ module.exports = {
   },
   output: {
     filename: "index.js",
-    path: path.join(__dirname, "dist", asset_entry),
+    path: path.join(__dirname, "dist", frontendDirectory),
   },
 
   // Depending in the language or framework you are using for
@@ -79,45 +76,51 @@ module.exports = {
   // webpack configuration. For example, if you are using React
   // modules and CSS as described in the "Adding a stylesheet"
   // tutorial, uncomment the following lines:
-  module: {
-    rules: [
-      { test: /\.(ts|tsx|jsx)$/, loader: "ts-loader" },
-      { test: /\.css$/, use: ["style-loader", "css-loader"] },
-    ],
-  },
+  // module: {
+  //  rules: [
+  //    { test: /\.(ts|tsx|jsx)$/, loader: "ts-loader" },
+  //    { test: /\.css$/, use: ['style-loader','css-loader'] }
+  //  ]
+  // },
   plugins: [
     new HtmlWebpackPlugin({
-      template: path.join(__dirname, "src", asset_entry, "index.html"),
+      template: path.join(__dirname, frontend_entry),
       cache: false,
     }),
     new webpack.EnvironmentPlugin({
-      NODE_ENV: process.env.NODE_ENV ?? "development",
-      DFX_NETWORK: process.env.DFX_NETWORK ?? "local",
-      LOCAL_II_CANISTER: `${canisterEnvVariables["INTERNET_IDENTITY_CANISTER_ID"]}`,
-      REPLICA_PORT,
+      NODE_ENV: "development",
+      II_URL: internetIdentityUrl,
       ...canisterEnvVariables,
     }),
     new webpack.ProvidePlugin({
       Buffer: [require.resolve("buffer/"), "Buffer"],
       process: require.resolve("process/browser"),
     }),
+    new CopyPlugin({
+      patterns: [
+        {
+          from: `src/${frontendDirectory}/src/.ic-assets.json*`,
+          to: ".ic-assets.json5",
+          noErrorOnMissing: true
+        },
+      ],
+    }),
   ],
-  // proxy /api to local replica during development
+  // proxy /api to port 4943 during development.
+  // if you edit dfx.json to define a project-specific local network, change the port to match.
   devServer: {
     proxy: {
       "/api": {
-        target:
-          `http://${dfxConfig.networks?.local?.bind}` ??
-          `http://127.0.0.1:${REPLICA_PORT}`,
+        target: "http://127.0.0.1:4943",
         changeOrigin: true,
         pathRewrite: {
           "^/api": "/api",
         },
       },
     },
-    static: path.resolve(__dirname, "src", asset_entry, "assets"),
+    static: path.resolve(__dirname, "src", frontendDirectory, "assets"),
     hot: true,
-    watchFiles: [path.resolve(__dirname, "src", asset_entry)],
+    watchFiles: [path.resolve(__dirname, "src", frontendDirectory)],
     liveReload: true,
   },
 };
