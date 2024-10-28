@@ -13,7 +13,7 @@
     "prestart": "npm run generate",
     "build": "webpack --config webpack.config.js",
     "start": "webpack serve --open",
-    "generate": "dfx generate greet_backend"
+    "generate": "dfx generate backend"
   },
   "devDependencies": {
     "@dfinity/agent": "0.15.3",

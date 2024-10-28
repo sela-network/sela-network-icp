@@ -91,7 +91,7 @@ If successful, your output will resemble the following:
 Deployed canisters.
 URLs:
   Frontend canister via browser
-    greet_frontend: http://127.0.0.1:4943/?canisterId=ryjl3-tyaaa-aaaaa-aaaba-cai
+    frontend: http://127.0.0.1:4943/?canisterId=ryjl3-tyaaa-aaaaa-aaaba-cai
     internet_identity: http://127.0.0.1:4943/?canisterId=r7inp-6aaaa-aaaaa-aaabq-cai
   Backend canister via Candid interface:
 ...
@@ -162,7 +162,7 @@ const isDevelopment = process.env.NODE_ENV !== "production";
 
 const internetIdentityUrl = network === "local" ? `http://${canisterEnvVariables["INTERNET_IDENTITY_CANISTER_ID"]}.localhost:4943/` : `https://identity.ic0.app`
 
-const frontendDirectory = "greet_frontend";
+const frontendDirectory = "frontend";
 
 const frontend_entry = path.join("src", frontendDirectory, "src", "index.html");
 
@@ -289,14 +289,14 @@ Open the `index.html` file and replace the content with the following:
 ```
 
 ### Step 7: Make the login button interact with II.
-In order for the login button to work, we need to give it behavior. Replace the contents of the `src/greet_frontend/src/index.js` file with the following:
+In order for the login button to work, we need to give it behavior. Replace the contents of the `src/frontend/src/index.js` file with the following:
 
 ```javascript
-import {createActor, greet_backend} from "../../declarations/greet_backend";
+import {createActor, backend} from "../../declarations/backend";
 import {AuthClient} from "@dfinity/auth-client"
 import {HttpAgent} from "@dfinity/agent";
 
-let actor = greet_backend;
+let actor = backend;
 
 const greetButton = document.getElementById("greet");
 greetButton.onclick = async (e) => {
@@ -334,7 +334,7 @@ loginButton.onclick = async (e) => {
     // Using the identity obtained from the auth client, we can create an agent to interact with the IC.
     const agent = new HttpAgent({identity});
     // Using the interface description of our webapp, we create an actor that we use to call the service methods.
-    actor = createActor(process.env.GREET_BACKEND_CANISTER_ID, {
+    actor = createActor(process.env.BACKEND_CANISTER_ID, {
         agent,
     });
 
@@ -348,7 +348,7 @@ We want our application to greet the caller principal. To do so, the backend Mot
 - No longer take a name parameter.
 - Use the `message.caller` for the greeting.
 
-Replace the content of `src/greet_backend/main.mo` with the following:
+Replace the content of `src/backend/main.mo` with the following:
 
 ```motoko
 import Principal "mo:base/Principal";
@@ -368,16 +368,16 @@ The successful output should resemble the following:
 Deployed canisters.
 URLs:
   Frontend canister via browser
-    greet_frontend: http://127.0.0.1:4943/?canisterId=gx2xg-kmaaa-aaaaa-qaasq-cai
+    frontend: http://127.0.0.1:4943/?canisterId=gx2xg-kmaaa-aaaaa-qaasq-cai
     internet_identity: http://127.0.0.1:4943/?canisterId=g6z42-4eaaa-aaaaa-qaata-cai
   Backend canister via Candid interface:
-    greet_backend: http://127.0.0.1:4943/?canisterId=gf4a7-g4aaa-aaaaa-qaarq-cai&id=gq3rs-huaaa-aaaaa-qaasa-cai
+    backend: http://127.0.0.1:4943/?canisterId=gf4a7-g4aaa-aaaaa-qaarq-cai&id=gq3rs-huaaa-aaaaa-qaasa-cai
     internet_identity: http://127.0.0.1:4943/?canisterId=gf4a7-g4aaa-aaaaa-qaarq-cai&id=g6z42-4eaaa-aaaaa-qaata-cai
 ```
 
 ### Step 10: Test the application.
 
-Open the `greet_frontend` URL in a web browser. 
+Open the `frontend` URL in a web browser. 
 
 You should be able to observe the following behavior:
 

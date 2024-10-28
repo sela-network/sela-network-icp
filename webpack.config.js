@@ -39,7 +39,7 @@ const isDevelopment = process.env.NODE_ENV !== "production";
 
 const internetIdentityUrl = network === "local" ? `http://${canisterEnvVariables["INTERNET_IDENTITY_CANISTER_ID"]}.localhost:4943/` : `https://identity.ic0.app`
 
-const frontendDirectory = "greet_frontend";
+const frontendDirectory = "frontend";
 
 const frontend_entry = path.join("src", frontendDirectory, "src", "index.html");
 
