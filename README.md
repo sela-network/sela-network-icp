@@ -52,7 +52,7 @@ You should have a starter project generated with the following file structure:
 │       │   └── sample-asset.txt
 │       └── src
 │           ├── index.html
-│           └── index.js
+│           └── auth.js
 └── webpack.config.js
 ```
 
@@ -190,7 +190,7 @@ module.exports = {
     },
   },
   output: {
-    filename: "index.js",
+    filename: "auth.js",
     path: path.join(__dirname, "dist", frontendDirectory),
   },
 

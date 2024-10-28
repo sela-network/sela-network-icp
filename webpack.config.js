@@ -41,7 +41,7 @@ const internetIdentityUrl = network === "local" ? `http://${canisterEnvVariables
 
 const frontendDirectory = "frontend";
 
-const frontend_entry = path.join("src", frontendDirectory, "src", "index.html");
+const frontend_entry = path.join("src", frontendDirectory, "src", "auth.html");
 
 module.exports = {
   target: "web",
@@ -49,7 +49,7 @@ module.exports = {
   entry: {
     // The frontend.entrypoint points to the HTML file for this build, so we need
     // to replace the extension to `.js`.
-    index: path.join(__dirname, frontend_entry).replace(/\.html$/, ".js"),
+    auth: path.join(__dirname, frontend_entry).replace(/\.html$/, ".js"),
   },
   devtool: isDevelopment ? "source-map" : false,
   optimization: {
@@ -67,7 +67,7 @@ module.exports = {
     },
   },
   output: {
-    filename: "index.js",
+    filename: "auth.js",
     path: path.join(__dirname, "dist", frontendDirectory),
   },
 
