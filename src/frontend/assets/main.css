@@ -26,12 +26,12 @@ button[type="submit"] {
     float: right;
 }
 
-#greeting {
+#logging {
     margin: 10px auto;
     padding: 10px 60px;
     border: 1px solid #222;
 }
 
-#greeting:empty {
+#logging:empty {
     display: none;
 }

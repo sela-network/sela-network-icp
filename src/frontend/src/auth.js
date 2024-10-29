@@ -7,6 +7,7 @@ import { IdbStorage } from '@dfinity/auth-client/lib/cjs/storage';
 
 // Initialize the actor with the backend
 let actor = backend;
+let authClient; // Declare authClient globally
 let result;
 
 // Helper function to convert ArrayBuffer to hex string
@@ -44,24 +45,23 @@ const setupAuth = async () => {
     options.identity = new SessionIdentity(publicKey);
 
     // Create the Auth instance with options
-    const auth = await AuthClient.create(options);
+    authClient = await AuthClient.create(options); // Initialize authClient here
 
-    console.log('auth: ', auth);
+    console.log('auth: ', authClient);
 
     // Start the login process and wait for it to finish
     await new Promise((resolve) => {
-      auth.login({
+      authClient.login({
         identityProvider: process.env.II_URL,
         onSuccess: resolve,
       });
     });
 
     // Check if authenticated using the auth instance
-    if (await auth.isAuthenticated()) {
+    if (await authClient.isAuthenticated()) {
       console.log('Successfully authenticated');
 
-      const identity = auth.getIdentity();
-
+      const identity = authClient.getIdentity();
       const agent = new HttpAgent({ identity: identity });
 
       // Create an actor to interact with the backend
@@ -99,36 +99,37 @@ const setupAuth = async () => {
   }
 };
 
-// Attach event listeners to buttons
-const greetButton = document.getElementById('greet');
-greetButton.onclick = async (e) => {
-  e.preventDefault();
-  greetButton.setAttribute('disabled', true);
-
-  const principalID = await actor.whoami();
-  greetButton.removeAttribute('disabled');
-
-  //   document.getElementById('greeting').innerText = principalID;
-  //   console.log('principalID: ', principalID);
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const redirectScheme = urlParams.get('scheme');
-  const redirectHost = urlParams.get('host');
-
-  if (result) {
-    var delegationString = JSON.stringify(result);
-
-    const encodedDelegation = encodeURIComponent(delegationString);
-
-    window.location.href = `${redirectScheme}://${redirectHost}?del=${encodedDelegation}&status=true`;
+// Function to handle logout
+const handleLogout = async () => {
+  if (!authClient) {
+    console.error('Auth client is not initialized');
+    return; // Exit if authClient is not initialized
   }
 
-  return false;
+  try {
+    await authClient.logout(); // Call the logout method
+    console.log("Successfully logged out");
+
+    // Update the UI after logout
+    document.getElementById("getData").innerText = ""; // Clear data message
+    document.getElementById("login").style.display = "block"; // Show login button
+    document.getElementById("logout").style.display = "none"; // Hide logout button
+  } catch (error) {
+    console.error('Error during logout:', error);
+  }
 };
 
+// Attach event listeners to buttons
 const loginButton = document.getElementById('login');
 loginButton.onclick = async (e) => {
   e.preventDefault();
   await setupAuth(); // Call the setupAuth function to handle authentication
+  return false;
+};
+
+const logoutButton = document.getElementById("logout");
+logoutButton.onclick = async (e) => {
+  e.preventDefault();
+  await handleLogout(); // Call the handleLogout function to log out
   return false;
 };
