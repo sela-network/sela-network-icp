@@ -1,11 +1,14 @@
 {
+  "__Candid_UI": {
+    "local": "aax3a-h4aaa-aaaaa-qaahq-cai"
+  },
   "backend": {
-    "local": "bd3sg-teaaa-aaaaa-qaaba-cai"
+    "local": "ajuq4-ruaaa-aaaaa-qaaga-cai"
   },
   "frontend": {
-    "local": "bkyz2-fmaaa-aaaaa-qaaaq-cai"
+    "local": "aovwi-4maaa-aaaaa-qaagq-cai"
   },
   "internet_identity": {
-    "local": "be2us-64aaa-aaaaa-qaabq-cai"
+    "local": "ahw5u-keaaa-aaaaa-qaaha-cai"
   }
 }
