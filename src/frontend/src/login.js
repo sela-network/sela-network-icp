@@ -13,7 +13,7 @@ dataButton.onclick = async (e) => {
     const principalID = await actor.whoami();
 
     dataButton.removeAttribute("disabled");
-    document.getElementById("getData").innerText = principalID;
+    document.getElementById("logging").innerText = principalID;
     console.log("principalID: ", principalID);
   } catch (error) {
     console.error("Error fetching principal ID: ", error);

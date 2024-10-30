@@ -2,7 +2,7 @@ import { createActor, backend } from '../../declarations/backend';
 import { AuthClient } from '@dfinity/auth-client';
 import { HttpAgent } from '@dfinity/agent';
 import { fromHexString } from '@dfinity/candid';
-import { Ed25519PublicKey } from '@dfinity/identity';
+import { Ed25519KeyIdentity, Ed25519PublicKey } from '@dfinity/identity';
 import { IdbStorage } from '@dfinity/auth-client/lib/cjs/storage';
 
 // Initialize the actor with the backend
@@ -17,22 +17,6 @@ const bytesToHex = (buffer) => {
   ).join('');
 };
 
-// SessionIdentity class definition
-class SessionIdentity {
-  constructor(publicKey) {
-    this.publicKey = publicKey;
-  }
-
-  getPublicKey() {
-    return this.publicKey;
-  }
-
-  async sign(blob) {
-    throw new Error('Not implemented');
-  }
-}
-
-// Function to handle login and setup authentication
 const setupAuth = async () => {
   const url = new URL(window.location.href);
   const sessionKey = url.searchParams.get('sessionkey') ?? ''; // Extract session key from the URL
@@ -42,7 +26,7 @@ const setupAuth = async () => {
   if (sessionKey) {
     const derPublicKey = fromHexString(sessionKey);
     const publicKey = Ed25519PublicKey.fromDer(derPublicKey);
-    options.identity = new SessionIdentity(publicKey);
+    options.identity = Ed25519KeyIdentity.generate(); // Generate a key identity here
 
     // Create the Auth instance with options
     authClient = await AuthClient.create(options); // Initialize authClient here
@@ -72,6 +56,9 @@ const setupAuth = async () => {
       console.log('actor: ', actor);
       console.log('identity: ', identity);
 
+      // Log the principal for debugging
+      console.log('Principal:', identity.getPrincipal().toString());
+
       const delegations = identity._delegation.delegations.map(
         (delegation) => ({
           delegation: {
@@ -82,7 +69,7 @@ const setupAuth = async () => {
         })
       );
 
-      const publicKey = bytesToHex(identity._inner.getPublicKey().toDer());
+      const publicKey = bytesToHex(identity.getPublicKey().toDer());
 
       // Create the final structure
       result = {
@@ -119,12 +106,26 @@ const handleLogout = async () => {
   }
 };
 
-// Attach event listeners to buttons
-const loginButton = document.getElementById('login');
-loginButton.onclick = async (e) => {
+const callWhoami = async () => {
+  try {
+    const principalID = await actor.whoami();
+    console.log("Principal ID:", principalID);
+    document.getElementById("logging").innerText = principalID.toString(); // Display principal ID in the UI
+  } catch (error) {
+    console.error("Error fetching principal ID:", error);
+  }
+};
+
+
+// Example event listener for a button to call whoami
+document.getElementById("getData").onclick = async (e) => {
   e.preventDefault();
-  await setupAuth(); // Call the setupAuth function to handle authentication
-  return false;
+  await callWhoami(); // Then call whoami
+};
+
+document.getElementById("login").onclick = async (e) => {
+  e.preventDefault();
+  await setupAuth(); // Ensure authentication is set up first
 };
 
 const logoutButton = document.getElementById("logout");
