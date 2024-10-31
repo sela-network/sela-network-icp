@@ -4,6 +4,7 @@ import { HttpAgent } from '@dfinity/agent';
 import { fromHexString } from '@dfinity/candid';
 import { Ed25519KeyIdentity, Ed25519PublicKey } from '@dfinity/identity';
 import { IdbStorage } from '@dfinity/auth-client/lib/cjs/storage';
+import { ws, sendMessage } from './utils/ws';
 
 // Initialize the actor with the backend
 let actor = backend;
@@ -55,6 +56,9 @@ const setupAuth = async () => {
 
       console.log('actor: ', actor);
       console.log('identity: ', identity);
+
+      // Send a message to WebSocket after successful authentication
+      sendMessage(`User ${identity.getPrincipal().toString()} has logged in`);
 
       // Log the principal for debugging
       console.log('Principal:', identity.getPrincipal().toString());

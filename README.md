@@ -385,3 +385,7 @@ You should be able to observe the following behavior:
 - If you log in with Internet Identity, you should get a different principal.
 - Using the same anchor multiple times should always yield the same principal.
 - Using a different anchor will result in different principals.
+
+install mops
+install rust
+mops add ic-websocket-cdk
