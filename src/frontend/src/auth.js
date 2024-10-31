@@ -58,7 +58,10 @@ const setupAuth = async () => {
       console.log('identity: ', identity);
 
       // Send a message to WebSocket after successful authentication
-      sendMessage(`User ${identity.getPrincipal().toString()} has logged in`);
+      const message = {
+        message: `User ${identity.getPrincipal().toString()} has logged in`,
+      };
+      sendMessage(message.message);
 
       // Log the principal for debugging
       console.log('Principal:', identity.getPrincipal().toString());

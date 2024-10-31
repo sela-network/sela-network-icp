@@ -24,7 +24,7 @@ let messageQueue = [];
 
 export const sendMessage = (message) => {
   if (isConnected) {
-    ws.send(JSON.stringify({ message }));
+    ws.send({ message });
     console.log("Message sent:", message);
   } else {
     messageQueue.push({ message });
@@ -51,7 +51,8 @@ ws.onerror = (error) => {
 
 ws.onmessage = (event) => {
   try {
-    const receivedMessage = JSON.parse(event.data);
+    console.log("message data: ", event.data)
+    const receivedMessage = event.data;
     console.log("Received message:", receivedMessage);
   } catch (error) {
     console.error("Error receiving message:", error);

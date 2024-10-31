@@ -386,6 +386,31 @@ You should be able to observe the following behavior:
 - Using the same anchor multiple times should always yield the same principal.
 - Using a different anchor will result in different principals.
 
-install mops
-install rust
-mops add ic-websocket-cdk
+
+### Step 11: Run ic-websocket-gateway locally
+Dependencies:
+- install rust : curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+- - check if its installed: rustc --version
+- install mops: cargo install mops
+- then run command: mops add ic-websocket-cdk
+
+Git clone: https://github.com/omnia-network/ic-websocket-gateway.git
+Steps:
+- cargo run
+- Docker: docker build -t ic-websocket-gateway .
+- - docker run -p 8080:8080 ic-websocket-gateway --ic-network-url http://host.docker.internal:4943
+(Note: Above will run docket on port 8080, then the sela node icp will run on port 8081, pls make the same change to sela node app)
+Above will make the ic-websocket-gateway run locally.
+
+### Step 12: Run sela-node-icp locally
+- Clone: git@github.com:sela-network/sela-network-icp.git
+- Commands:
+```bash
+npm i
+npm install --save-dev webpack webpack-cli
+dfx canister create backend
+dfx canister create frontend
+dfx canister create internet_identity
+dfx deploy
+npm start
+```
