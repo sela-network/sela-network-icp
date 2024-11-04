@@ -63,6 +63,11 @@ const setupAuth = async () => {
       };
       sendMessage(message.message);
 
+      const response = await actor.backend_health_check(); // Assuming actor is already defined
+      console.log("Backend Health Check Response:", response); // Should log "OK"
+
+      const ws_response = await actor.health_check(); // Assuming actor is already defined
+      console.log("WS Health Check Response:", ws_response); // Should log "OK"
       // Log the principal for debugging
       console.log('Principal:', identity.getPrincipal().toString());
 

@@ -10,8 +10,25 @@ actor {
       return msg.caller;
   };
 
+  // Health check function
+  public shared query func backend_health_check() : async Text {
+      return "OK"; // Responds with "OK"
+  };
+
    type AppMessage = {
     message : Text;
+  };
+
+   // Variable to track if the WebSocket is connected
+  var isConnected : Bool = false;
+
+  // Health check function for WebSocket
+  public shared query func health_check() : async Text {
+      return if (isConnected) {
+          "OK"
+      } else {
+          "Error: WebSocket is not connected."
+      };
   };
 
   /// A custom function to send the message to the client
@@ -29,8 +46,9 @@ actor {
 
   func on_open(args : IcWebSocketCdk.OnOpenCallbackArgs) : async () {
     let message : AppMessage = {
-      message = "Ping";
+      message = "Pong";
     };
+    isConnected := true; // Update connection status to true
     await send_app_message(args.client_principal, message);
   };
 
@@ -55,6 +73,7 @@ actor {
   };
 
   func on_close(args : IcWebSocketCdk.OnCloseCallbackArgs) : async () {
+    isConnected := false; // Update connection status to false
     Debug.print("Client " # debug_show (args.client_principal) # " disconnected");
   };
 
