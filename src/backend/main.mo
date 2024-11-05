@@ -4,8 +4,22 @@ import IcWebSocketCdkState "mo:ic-websocket-cdk/State";
 import IcWebSocketCdkTypes "mo:ic-websocket-cdk/Types";
 import Text "mo:base/Text";
 import Debug "mo:base/Debug";
+import Result "mo:base/Result";
+import DatabaseActor "canister:database";
 
-actor {
+actor Main {
+
+  type UserData = {
+    principalID: Text;
+    randomID: Text;
+  };
+
+  let database = actor(Principal.toText(Principal.fromActor(DatabaseActor))) : actor {
+      insert : shared (Text, Text) -> async Result.Result<(), Text>;
+      get : shared query (Text) -> async Result.Result<UserData, Text>;
+      update : shared (Text, Text) -> async Result.Result<(), Text>;
+      delete : shared (Text) -> async Result.Result<(), Text>;
+  };
   public shared query (msg) func whoami() : async Principal {
       return msg.caller;
   };
@@ -107,4 +121,24 @@ actor {
   public shared query ({ caller }) func ws_get_messages(args : IcWebSocketCdk.CanisterWsGetMessagesArguments) : async IcWebSocketCdk.CanisterWsGetMessagesResult {
     ws.ws_get_messages(caller, args);
   };
+
+  public shared(msg) func storeUserData(randomID: Text) : async Result.Result<(), Text> {
+    let principalID = Principal.toText(msg.caller);
+    await database.insert(principalID, randomID);
+};
+
+public shared(msg) func getUserData() : async Result.Result<UserData, Text> {
+    let principalID = Principal.toText(msg.caller);
+    await database.get(principalID);
+};
+
+public shared(msg) func updateUserData(newRandomID: Text) : async Result.Result<(), Text> {
+    let principalID = Principal.toText(msg.caller);
+    await database.update(principalID, newRandomID);
+};
+
+public shared(msg) func deleteUserData() : async Result.Result<(), Text> {
+    let principalID = Principal.toText(msg.caller);
+    await database.delete(principalID);
+};
 };

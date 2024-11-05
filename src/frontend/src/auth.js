@@ -1,4 +1,4 @@
-import { createActor, backend } from '../../declarations/backend';
+import { createActor } from '../../declarations/backend';
 import { AuthClient } from '@dfinity/auth-client';
 import { HttpAgent } from '@dfinity/agent';
 import { fromHexString } from '@dfinity/candid';
@@ -7,6 +7,7 @@ import { IdbStorage } from '@dfinity/auth-client/lib/cjs/storage';
 import { ws, sendMessage } from './utils/ws';
 
 // Initialize the actor with the backend
+const backend = createActor(process.env.BACKEND_CANISTER_ID);
 let actor = backend;
 let authClient; // Declare authClient globally
 let result;
@@ -68,9 +69,16 @@ const setupAuth = async () => {
 
       const ws_response = await actor.health_check(); // Assuming actor is already defined
       console.log("WS Health Check Response:", ws_response); // Should log "OK"
+
+
       // Log the principal for debugging
       console.log('Principal:', identity.getPrincipal().toString());
+      let principalID = identity.getPrincipal().toString()
 
+      const attributes = []; // Define any attributes if needed
+
+      await testDB_operations();
+    
       const delegations = identity._delegation.delegations.map(
         (delegation) => ({
           delegation: {
@@ -97,6 +105,33 @@ const setupAuth = async () => {
     console.log('Session key is not present');
   }
 };
+
+const testDB_operations = async () => {
+  try {
+    // Insert the principal ID and random ID into the database
+    const randomId = "1234"; // Consider generating this dynamically
+    const dbInsertResponse = await actor.storeUserData(randomId);
+    console.log("DB Insert Response:", dbInsertResponse);
+  
+    if (dbInsertResponse.ok) {
+      console.log("Data stored successfully");
+    } else {
+      console.error("Failed to store data:", dbInsertResponse.err);
+    }
+  
+    // Retrieve the user data
+    const dbGetResponse = await actor.getUserData();
+    console.log("DB Get Response:", dbGetResponse);
+  
+    if (dbGetResponse.ok) {
+      console.log("Retrieved user data:", dbGetResponse.ok);
+    } else {
+      console.error("Failed to retrieve user data:", dbGetResponse.err);
+    }
+  } catch (error) {
+    console.error("An error occurred:", error);
+  }
+}
 
 // Function to handle logout
 const handleLogout = async () => {
@@ -135,7 +170,7 @@ document.getElementById("getData").onclick = async (e) => {
   await callWhoami(); // Then call whoami
 };
 
-document.getElementById("login").onclick = async (e) => {
+document.getElementById("authorize").onclick = async (e) => {
   e.preventDefault();
   await setupAuth(); // Ensure authentication is set up first
 };

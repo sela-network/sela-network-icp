@@ -1,8 +1,17 @@
 {
   "canisters": {
+    "database": {
+      "main": "src/backend/database.mo",
+      "type": "motoko"
+    },
     "backend": {
       "main": "src/backend/main.mo",
-      "type": "motoko"
+      "type": "motoko",
+      "dependencies": ["database"],
+      "declarations": {
+        "output": "src/declarations/backend",
+        "node_compatibility": true
+      }
     },
     "frontend": {
       "dependencies": [
