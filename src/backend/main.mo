@@ -5,6 +5,7 @@ import IcWebSocketCdkTypes "mo:ic-websocket-cdk/Types";
 import Text "mo:base/Text";
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
+import CanDB "mo:candb/CanDB";
 import DatabaseActor "canister:database";
 
 actor Main {
@@ -122,23 +123,37 @@ actor Main {
     ws.ws_get_messages(caller, args);
   };
 
-  public shared(msg) func storeUserData(randomID: Text) : async Result.Result<(), Text> {
-    let principalID = Principal.toText(msg.caller);
+  public shared(msg) func storeUserData(principalID:Text, randomID: Text) : async Result.Result<(), Text> {
     await database.insert(principalID, randomID);
-};
+  };
 
-public shared(msg) func getUserData() : async Result.Result<UserData, Text> {
-    let principalID = Principal.toText(msg.caller);
-    await database.get(principalID);
-};
+  public shared(msg) func getUserData(principalID:Text) : async Result.Result<UserData, Text> {
+      await database.get(principalID);
+  };
 
-public shared(msg) func updateUserData(newRandomID: Text) : async Result.Result<(), Text> {
-    let principalID = Principal.toText(msg.caller);
-    await database.update(principalID, newRandomID);
-};
+  public shared(msg) func updateUserData(principalID:Text, newRandomID: Text) : async Result.Result<(), Text> {
+      await database.update(principalID, newRandomID);
+  };
 
-public shared(msg) func deleteUserData() : async Result.Result<(), Text> {
-    let principalID = Principal.toText(msg.caller);
-    await database.delete(principalID);
-};
+//  public shared(msg) func getAllUsers(limit: Nat, skUpperBound : Text, ascending: ?Bool) : async async Result.Result<CanDB.ScanResult, Text> {
+//     Debug.print("Attempting to get all users with limit: " # debug_show(limit));
+    
+//     try {
+//         let result = await Database.scanAllUsers(limit, skUpperBound, ascending);
+        
+//         switch (result) {
+//             case (#ok(scanResult)) {
+//                 Debug.print("Successfully retrieved users.");
+//                 return #ok(scanResult); // Returning the scan result
+//             };
+//             case (#err(errorMessage)) {
+//                 Debug.print("Error retrieving users: " # errorMessage);
+//                 return #err("Failed to retrieve user data: " # errorMessage);
+//             };
+//         }
+//     } catch (error) {
+//         Debug.print("Unexpected error in getAllUsers: " # Error.message(error));
+//         return #err("Unexpected error: " # Error.message(error));
+//     }
+//   };
 };

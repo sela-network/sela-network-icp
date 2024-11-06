@@ -77,7 +77,7 @@ const setupAuth = async () => {
 
       const attributes = []; // Define any attributes if needed
 
-      await testDB_operations();
+      await testDB_operations(principalID);
     
       const delegations = identity._delegation.delegations.map(
         (delegation) => ({
@@ -106,21 +106,21 @@ const setupAuth = async () => {
   }
 };
 
-const testDB_operations = async () => {
+const testDB_operations = async (pid) => {
   try {
     // Insert the principal ID and random ID into the database
     const randomId = "1234"; // Consider generating this dynamically
-    const dbInsertResponse = await actor.storeUserData(randomId);
+    const dbInsertResponse = await actor.storeUserData(pid.toString(), randomId);
     console.log("DB Insert Response:", dbInsertResponse);
   
-    if (dbInsertResponse.ok) {
+    if (dbInsertResponse) {
       console.log("Data stored successfully");
     } else {
       console.error("Failed to store data:", dbInsertResponse.err);
     }
   
     // Retrieve the user data
-    const dbGetResponse = await actor.getUserData();
+    const dbGetResponse = await actor.getUserData(pid.toString());
     console.log("DB Get Response:", dbGetResponse);
   
     if (dbGetResponse.ok) {
@@ -128,6 +128,17 @@ const testDB_operations = async () => {
     } else {
       console.error("Failed to retrieve user data:", dbGetResponse.err);
     }
+
+    // update the user data
+    const dbUpdateResponse = await actor.updateUserData(pid.toString(), "12345");
+    console.log("DB Update Response:", dbUpdateResponse);
+  
+    if (dbUpdateResponse.ok) {
+      console.log("Retrieved user data:", dbUpdateResponse.ok);
+    } else {
+      console.error("Failed to Update user data:", dbUpdateResponse.err);
+    }
+
   } catch (error) {
     console.error("An error occurred:", error);
   }
