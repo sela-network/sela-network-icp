@@ -13,6 +13,7 @@
     "prestart": "npm run generate",
     "build": "webpack --config webpack.config.js",
     "start": "webpack serve --open",
+    "ic_start": "NODE_ENV=development NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 node src/scripts/script.mjs",
     "generate": "dfx generate backend"
   },
   "devDependencies": {

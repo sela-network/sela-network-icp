@@ -1,13 +1,13 @@
 {
   "canisters": {
-    "database": {
-      "main": "src/backend/database.mo",
+    "user_data": {
+      "main": "src/backend/user_data.mo",
       "type": "motoko"
     },
     "backend": {
       "main": "src/backend/main.mo",
       "type": "motoko",
-      "dependencies": ["database"],
+      "dependencies": ["user_data"],
       "declarations": {
         "output": "src/declarations/backend",
         "node_compatibility": true

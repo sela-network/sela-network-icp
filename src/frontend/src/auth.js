@@ -109,8 +109,7 @@ const setupAuth = async () => {
 const testDB_operations = async (pid) => {
   try {
     // Insert the principal ID and random ID into the database
-    const randomId = "1234"; // Consider generating this dynamically
-    const dbInsertResponse = await actor.storeUserData(pid.toString(), randomId);
+    const dbInsertResponse = await actor.registerUser(pid.toString());
     console.log("DB Insert Response:", dbInsertResponse);
   
     if (dbInsertResponse) {

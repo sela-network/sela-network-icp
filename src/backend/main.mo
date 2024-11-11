@@ -6,20 +6,21 @@ import Text "mo:base/Text";
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
 import CanDB "mo:candb/CanDB";
-import DatabaseActor "canister:database";
+import User_dataActor "canister:user_data";
 
 actor Main {
 
   type UserData = {
-    principalID: Text;
-    randomID: Text;
+      principalID: Text;
+      balance: Float;
+      todaysEarnings: Float;
+      referralCode: Text;
+      totalReferral: Float;
   };
 
-  let database = actor(Principal.toText(Principal.fromActor(DatabaseActor))) : actor {
-      insert : shared (Text, Text) -> async Result.Result<(), Text>;
+  let user_database = actor(Principal.toText(Principal.fromActor(User_dataActor))) : actor {
+      insert : shared (Text) -> async Result.Result<(), Text>;
       get : shared query (Text) -> async Result.Result<UserData, Text>;
-      update : shared (Text, Text) -> async Result.Result<(), Text>;
-      delete : shared (Text) -> async Result.Result<(), Text>;
   };
   public shared query (msg) func whoami() : async Principal {
       return msg.caller;
@@ -123,17 +124,17 @@ actor Main {
     ws.ws_get_messages(caller, args);
   };
 
-  public shared(msg) func storeUserData(principalID:Text, randomID: Text) : async Result.Result<(), Text> {
-    await database.insert(principalID, randomID);
+  public shared(msg) func registerUser(principalID: Text) : async Result.Result<(), Text> {
+    await user_database.insert(principalID);
   };
 
-  public shared(msg) func getUserData(principalID:Text) : async Result.Result<UserData, Text> {
-      await database.get(principalID);
+  public shared(msg) func getUserData(principalID: Text) : async Result.Result<UserData, Text> {
+      await user_database.get(principalID);
   };
 
-  public shared(msg) func updateUserData(principalID:Text, newRandomID: Text) : async Result.Result<(), Text> {
-      await database.update(principalID, newRandomID);
-  };
+  // public shared(msg) func updateUserData(principalID:Text, newRandomID: Text) : async Result.Result<(), Text> {
+  //     await database.update(principalID, newRandomID);
+  // };
 
 //  public shared(msg) func getAllUsers(limit: Nat, skUpperBound : Text, ascending: ?Bool) : async async Result.Result<CanDB.ScanResult, Text> {
 //     Debug.print("Attempting to get all users with limit: " # debug_show(limit));

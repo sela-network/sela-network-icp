@@ -3,15 +3,15 @@
     "local": "bw4dl-smaaa-aaaaa-qaacq-cai"
   },
   "backend": {
-    "local": "be2us-64aaa-aaaaa-qaabq-cai"
-  },
-  "database": {
-    "local": "bkyz2-fmaaa-aaaaa-qaaaq-cai"
+    "local": "ahw5u-keaaa-aaaaa-qaaha-cai"
   },
   "frontend": {
-    "local": "bd3sg-teaaa-aaaaa-qaaba-cai"
+    "local": "aax3a-h4aaa-aaaaa-qaahq-cai"
   },
   "internet_identity": {
-    "local": "br5f7-7uaaa-aaaaa-qaaca-cai"
+    "local": "c5kvi-uuaaa-aaaaa-qaaia-cai"
+  },
+  "user_data": {
+    "local": "c2lt4-zmaaa-aaaaa-qaaiq-cai"
   }
 }
