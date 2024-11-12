@@ -8,6 +8,9 @@
       "main": "src/backend/main.mo",
       "type": "motoko",
       "dependencies": ["user_data"],
+      "http": {
+        "port": 4943
+      },
       "declarations": {
         "output": "src/declarations/backend",
         "node_compatibility": true

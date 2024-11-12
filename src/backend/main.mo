@@ -7,8 +7,14 @@ import Debug "mo:base/Debug";
 import Result "mo:base/Result";
 import CanDB "mo:candb/CanDB";
 import User_dataActor "canister:user_data";
+import Error "mo:base/Error";
+import HTTP "./Http";
+import Blob "mo:base/Blob";
 
 actor Main {
+
+  type HttpRequest = HTTP.HttpRequest;
+  type HttpResponse = HTTP.HttpResponse;
 
   type UserData = {
       principalID: Text;
@@ -19,9 +25,10 @@ actor Main {
   };
 
   let user_database = actor(Principal.toText(Principal.fromActor(User_dataActor))) : actor {
-      insert : shared (Text) -> async Result.Result<(), Text>;
-      get : shared query (Text) -> async Result.Result<UserData, Text>;
+      insertUserData : shared (Text) -> async Result.Result<(), Text>;
+      getUserData : shared query (Text) -> async Result.Result<UserData, Text>;
   };
+
   public shared query (msg) func whoami() : async Principal {
       return msg.caller;
   };
@@ -125,36 +132,128 @@ actor Main {
   };
 
   public shared(msg) func registerUser(principalID: Text) : async Result.Result<(), Text> {
-    await user_database.insert(principalID);
+    await user_database.insertUserData(principalID);
   };
 
-  public shared(msg) func getUserData(principalID: Text) : async Result.Result<UserData, Text> {
-      await user_database.get(principalID);
+  public func getUserData(principalID: Text) : async Result.Result<UserData, Text> {
+      await user_database.getUserData(principalID);
   };
 
-  // public shared(msg) func updateUserData(principalID:Text, newRandomID: Text) : async Result.Result<(), Text> {
-  //     await database.update(principalID, newRandomID);
-  // };
+  public query func http_request(req : HttpRequest) : async HttpResponse {
+    let path = req.url;
+    let method = req.method;
 
-//  public shared(msg) func getAllUsers(limit: Nat, skUpperBound : Text, ascending: ?Bool) : async async Result.Result<CanDB.ScanResult, Text> {
-//     Debug.print("Attempting to get all users with limit: " # debug_show(limit));
-    
-//     try {
-//         let result = await Database.scanAllUsers(limit, skUpperBound, ascending);
-        
-//         switch (result) {
-//             case (#ok(scanResult)) {
-//                 Debug.print("Successfully retrieved users.");
-//                 return #ok(scanResult); // Returning the scan result
-//             };
-//             case (#err(errorMessage)) {
-//                 Debug.print("Error retrieving users: " # errorMessage);
-//                 return #err("Failed to retrieve user data: " # errorMessage);
-//             };
-//         }
-//     } catch (error) {
-//         Debug.print("Unexpected error in getAllUsers: " # Error.message(error));
-//         return #err("Unexpected error: " # Error.message(error));
-//     }
-//   };
+    switch (method, path) {
+      case ("GET", "/getUserData") {
+        // Return an upgrade response for GET requests that need async operations
+        return {
+          status_code = 200;
+          headers = [];
+          body = Text.encodeUtf8("");
+          streaming_strategy = null;
+          upgrade = ?true;
+        };
+      };
+      case ("POST", "/registerUser") {
+        // Return an upgrade response for POST requests that need async operations
+        return {
+          status_code = 200;
+          headers = [];
+          body = Text.encodeUtf8("");
+          streaming_strategy = null;
+          upgrade = ?true;
+        };
+      };
+      case _ {
+        return notFound();
+      };
+    };
+  };
+
+  public func http_request_update(req : HttpRequest) : async HttpResponse {
+    let path = req.url;
+    let method = req.method;
+    let headers = req.headers;
+
+    switch (method, path) {
+      case ("GET", "/getUserData") {
+        let authHeader = getHeader(headers, "Authorization");
+        switch (authHeader) {
+          case null { return badRequest("Missing Authorization header"); };
+          case (?principalID) {
+            switch (await getUserData(principalID)) {
+              case (#ok(userData)){
+                return {
+                  status_code = 200;
+                  headers = [("Content-Type", "application/json")];
+                  body = Text.encodeUtf8(debug_show(userData));
+                  streaming_strategy = null;
+                  upgrade = null;
+                };
+              };
+              case (#err(errorMsg)) {
+                return badRequest(errorMsg);
+              };
+            };
+          };
+        };
+      };
+      case ("POST", "/registerUser") {
+        let authHeader = getHeader(headers, "Authorization");
+        switch (authHeader) {
+          case null { return badRequest("Missing Authorization header"); };
+          case (?principalID) {
+            switch (await registerUser(principalID)) {
+              case (#ok(_)) {
+                return {
+                  status_code = 200;
+                  headers = [("Content-Type", "text/plain")];
+                  body = Text.encodeUtf8("User registered successfully");
+                  streaming_strategy = null;
+                  upgrade = null;
+                };
+              };
+              case (#err(errorMsg)) {
+                return badRequest(errorMsg);
+              };
+            };
+          };
+        };
+      };
+      case _ {
+        return notFound();
+      };
+    };
+  };
+
+  // Helper functions for HTTP responses
+  func badRequest(msg : Text) : HttpResponse {
+    {
+      status_code = 400;
+      headers = [("Content-Type", "text/plain")];
+      body = Text.encodeUtf8(msg);
+      streaming_strategy = null;
+      upgrade = null;
+    };
+  };
+
+  func notFound() : HttpResponse {
+    {
+      status_code = 404;
+      headers = [("Content-Type", "text/plain")];
+      body = Text.encodeUtf8("Not Found");
+      streaming_strategy = null;
+      upgrade = null;
+    };
+  };
+
+  // Helper function to get header value
+func getHeader(headers : [(Text, Text)], name : Text) : ?Text {
+    for ((key, value) in headers.vals()) {
+        if (Text.equal(key, name)) {
+            return ?value;
+        };
+    };
+    null
+  };
 };
