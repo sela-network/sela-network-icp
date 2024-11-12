@@ -9,6 +9,8 @@ import CanDB "mo:candb/CanDB";
 import Error "mo:base/Error";
 import HTTP "./Http";
 import Entity "mo:candb/Entity";
+import Float "mo:base/Float";
+
 
 actor Main {
 
@@ -173,10 +175,28 @@ actor Main {
           case (?principalID) {
             switch (await getUserData(principalID)) {
               case (#ok(userData)){
+                // Constructing the JSON manually
+                let jsonBody = Text.concat(
+                  "{",
+                  Text.concat(
+                    "\"principalID\":\"" # userData.principalID # "\",",
+                    Text.concat(
+                      "\"balance\":" # Float.toText(userData.balance) # ",",
+                      Text.concat(
+                        "\"todaysEarnings\":" # Float.toText(userData.todaysEarnings) # ",",
+                        Text.concat(
+                          "\"referralCode\":\"" # userData.referralCode # "\",",
+                          "\"totalReferral\":" # Float.toText(userData.totalReferral)
+                        )
+                      )
+                    )
+                  ) # "}"
+                );
+                Debug.print("JSON response: " # jsonBody);
                 return {
                   status_code = 200;
                   headers = [("Content-Type", "application/json")];
-                  body = Text.encodeUtf8(debug_show(userData));
+                  body = Text.encodeUtf8(jsonBody);
                   streaming_strategy = null;
                   upgrade = null;
                 };
