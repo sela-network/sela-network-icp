@@ -10,5 +10,8 @@
   },
   "internet_identity": {
     "local": "ajuq4-ruaaa-aaaaa-qaaga-cai"
+  },
+  "message_service_polling": {
+    "local": "ahw5u-keaaa-aaaaa-qaaha-cai"
   }
 }

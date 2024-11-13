@@ -7,7 +7,7 @@ import Debug "mo:base/Debug";
 import Result "mo:base/Result";
 import CanDB "mo:candb/CanDB";
 import Error "mo:base/Error";
-import HTTP "./Http";
+import HTTP "../utils/Http";
 import Entity "mo:candb/Entity";
 import Float "mo:base/Float";
 
@@ -48,7 +48,7 @@ actor Main {
       Debug.print("Attempting to create entity: ");
       {
           pk = "userTable";
-          sk = principalID; // Set sk as hardcoded value
+          sk = principalID;
           attributes = [
               ("principalID", #text(principalID)),
               ("balance", #float(balance)),
@@ -159,14 +159,28 @@ actor Main {
     }
   };
 
+  public query func http_request(request: HttpRequest) : async HttpResponse {
+    return {
+        status_code = 200;
+        headers = [("Content-Type", "text/plain")];
+        body = Text.encodeUtf8("This is a query response");
+        streaming_strategy = null;
+        upgrade = ?true;  // This indicates that the request should be upgraded to an update call
+    };
+  };
+
   public func http_request_update(req : HttpRequest) : async HttpResponse {
     let path = req.url;
     let method = req.method;
     let headers = req.headers;
 
+    Debug.print("path: " # debug_show (path));
+    Debug.print("method: " # debug_show (method));
+    Debug.print("headers: " # debug_show (headers));
+
     switch (method, path) {
       case ("GET", "/getUserData") {
-        let authHeader = getHeader(headers, "Authorization");
+        let authHeader = getHeader(headers, "authorization");
         switch (authHeader) {
           case null { 
             Debug.print("Missing Authorization header ");
@@ -209,7 +223,7 @@ actor Main {
         };
       };
       case ("POST", "/registerUser") {
-        let authHeader = getHeader(headers, "Authorization");
+        let authHeader = getHeader(headers, "authorization");
         switch (authHeader) {
           case null { 
             Debug.print("Missing Authorization header ");
