@@ -168,6 +168,17 @@ const callWhoami = async () => {
     const principalID = await actor.whoami();
     console.log("Principal ID:", principalID);
     document.getElementById("logging").innerText = principalID.toString(); // Display principal ID in the UI
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirectScheme = urlParams.get('scheme');
+    const redirectHost = urlParams.get('host');
+
+    if (result) {
+      var delegationString = JSON.stringify(result);
+
+      const encodedDelegation = encodeURIComponent(delegationString);
+      window.location.href = `${redirectScheme}://${redirectHost}?del=${encodedDelegation}&status=true`;
+    }
   } catch (error) {
     console.error("Error fetching principal ID:", error);
   }
