@@ -178,93 +178,73 @@ actor polling {
     };
 
     public shared func updateJobCompleted(clientID: Text, jobID: Text, result: Text) : async Result.Result<Text, Text> {
-        Debug.print("Attempting to update job with jobID: " # jobID);
+        Debug.print("Attempting to mark job as completed: " # jobID);
         Debug.print("Request sent by clientID: " # clientID);
 
-        if (Text.size(jobID) == 0) {
-            return #err("Invalid input: jobId must not be empty");
-        };
-
         try {
-            // First, check if the job exists in CanDB
-            let existingJob = CanDB.get(jobDB, { pk = "jobTable"; sk = jobID });
-
-            switch (existingJob) {
-                case (?jobEntity) {
-                    Debug.print("Job found in DB with jobID: " # jobID);
-                    // Convert Text to Blob
-                    //let jsonBlob = Text.encodeUtf8(jsonText);
-                    
-                    // Prepare the updated attributes for the job
-                    let updatedAttributes = [
-                        ("state", #text("complete")), // Mark the job as completed
-                        ("result", #text(result)),    // Attach the result (blob)
-                        ("completeAt", #int(Time.now())) // Set the completion time
-                    ];
-
-                    // Define the update function to update the job attributes
-                    func updateAttributes(attributeMap : ?Entity.AttributeMap) : Entity.AttributeMap {
-                        switch (attributeMap) {
-                            case null {
-                                Entity.createAttributeMapFromKVPairs(updatedAttributes);
-                            };
-                            case (?map) {
-                                Entity.updateAttributeMapWithKVPairs(map, updatedAttributes);
-                            };
-                        }
+            // First, retrieve the job to check its current state
+            let jobEntity = CanDB.get(jobDB, { pk = "jobTable"; sk = jobID });
+            
+            switch (jobEntity) {
+                case (?job) {
+                    let currentState = switch (Entity.getAttributeMapValueForKey(job.attributes, "state")) {
+                        case (?(#text(s))) s;
+                        case _ "unknown";
                     };
 
-                    let updated = switch (
-                        CanDB.update(
-                            jobDB,
-                            {
-                                pk = "jobTable";
-                                sk = jobID;
-                                updateAttributeMapFunction = updateAttributes;
-                            },
-                        ),
-                    ) {
-                        case null { 
-                            Debug.print("Failed to update job: " # jobID);
-                            return #err("Failed to update job");
-                         };
-                        case (?updatedEntity) {
-                            let jobDetails = Entity.extractKVPairsFromAttributeMap(updatedEntity.attributes);
-                            let updateClientDB = await updateClientDBInfo(clientID, "", "alive", 0);
+                    let assignedAt = switch (Entity.getAttributeMapValueForKey(job.attributes, "assignedAt")) {
+                        case (?(#int(t))) t;
+                        case _ 0;
+                    };
+                    
+                    if (currentState != "assigned") {
+                        return #err("Job is not in 'assigned' state");
+                    };
+
+                    // Update job state to completed
+                    let updatedJobResult = await updateJobState(jobID, clientID, "completed", assignedAt, Time.now());
+                    
+                    switch (updatedJobResult) {
+                        case (#ok()) {
+                            // Update client state to idle
+                            let updatedClientResult = await updateClientState(clientID, "", "idle", Time.now());
                             
-                            switch (updateClientDB) {
+                            switch (updatedClientResult) {
                                 case (#ok()) {
-                                    // Client DB update was successful
                                     let jsonResponse = "{" #
                                         "\"status\": \"success\"," #
-                                        "\"message\": \"Job assigned successfully and client DB updated\"," #
-                                        "\"jobId\": \"" # updatedEntity.sk # "\"" #
+                                        "\"message\": \"Job marked as completed successfully\"," #
+                                        "\"jobId\": \"" # jobID # "\"," #
+                                        "\"clientId\": \"" # clientID # "\"," #
+                                        "\"completedAt\": \"" # Int.toText(Time.now()) # "\"" #
                                     "}";
                                     #ok(jsonResponse)
                                 };
-                                case (#err(errorMessage)) {
-                                    // Client DB update failed
+                                case (#err(errorMsg)) {
+                                    // Job is completed, but client state update failed
                                     let jsonResponse = "{" #
                                         "\"status\": \"partial_success\"," #
-                                        "\"message\": \"Job assigned but failed to update client DB: " # errorMessage # "\"," #
-                                        "\"jobId\": \"" # updatedEntity.sk # "\"" #
+                                        "\"message\": \"Job completed but failed to update client state: " # errorMsg # "\"," #
+                                        "\"jobId\": \"" # jobID # "\"," #
+                                        "\"clientId\": \"" # clientID # "\"" #
                                     "}";
                                     #ok(jsonResponse)
                                 };
                             }
-                        }
-                    };
+                        };
+                        case (#err(errorMsg)) {
+                            #err("Failed to update job state: " # errorMsg)
+                        };
+                    }
                 };
                 case null {
-                    // Job doesn't exist in the database, return error
-                    Debug.print("Job does not exist with jobID: " # jobID);
-                    return #err("Job does not exist");
+                    #err("Job not found")
                 };
             };
         } catch (error) {
-            Debug.print("Error caught in job update: " # Error.message(error));
-            return #err("Failed to update job: " # Error.message(error));
-        }
+            Debug.print("Error in updateJobCompleted: " # Error.message(error));
+            #err("An unexpected error occurred: " # Error.message(error))
+        };
     };
 
     public query func getJobWithID(jobID: Text) : async Result.Result<JobStruct, Text> { 
@@ -404,119 +384,82 @@ actor polling {
     public shared func assignJobToClient(clientID: Text) : async Result.Result<Text, Text> {
         Debug.print("Received client is alive with clientID: " # clientID);
 
-        if (Text.size(clientID) == 0) {
-            return #err("Invalid input: clientID must not be empty");
-        };
-
-        let skLowerBound = "job";  // Start of the range for client keys
-        let skUpperBound = "job~"; // End of the range for client keys
-        let limit = 1000;  // Limit number of records to scan
-        let ascending = null;  // Not specifying order
-
-        // Use CanDB.scan to retrieve job records
-        let { entities; nextKey } = CanDB.scan(
-            jobDB,
-            {
-                skLowerBound = skLowerBound;
-                skUpperBound = skUpperBound;
-                limit = limit;
-                ascending = ascending;
-            }
-        );
-
-        let pendingJobs = Array.filter(entities, func (entity : {attributes : Entity.AttributeMap; pk : Text; sk : Text}) : Bool {
-            switch (Entity.getAttributeMapValueForKey(entity.attributes, "state")) {
-                case (?(#text(state))) {
-                    Text.equal(state, "pending")
-                };
-                case _ { false };
-            }
-        });
-        //simply return if no job
-        if (Array.size(pendingJobs) == 0) {
-            let jsonResponse = "{" #
-                "\"status\": \"success\"," #
-                "\"message\": \"No pending jobs available\"" #
-            "}";
-            return #ok(jsonResponse);
-        };
         try{
-            switch (Array.find(pendingJobs, func (job: {attributes : Entity.AttributeMap; pk : Text; sk : Text}) : Bool { true })) {
-                case (?job) {
-                    Debug.print("Job found in DB with jobID: " # job.sk);
-                    let updatedAttributes = [
-                        ("state", #text("assigned")),
-                        ("clientId", #text(clientID)),   
-                        ("assignedAt", #int(Time.now()))
-                    ];
-                    func updateAttributes(attributeMap : ?Entity.AttributeMap) : Entity.AttributeMap {
-                        switch (attributeMap) {
-                            case null {
-                                Entity.createAttributeMapFromKVPairs(updatedAttributes);
-                            };
-                            case (?map) {
-                                Entity.updateAttributeMapWithKVPairs(map, updatedAttributes);
-                            };
-                        }
-                    };
-                    let updated = switch (
-                        CanDB.update(
-                            jobDB,
-                            {
-                                pk = "jobTable";
-                                sk = job.sk;
-                                updateAttributeMapFunction = updateAttributes;
-                            },
-                        ),
-                    ) {
-                        case null { 
-                            Debug.print("Failed to update job: " # job.sk);
-                            return #err("Failed to update job");
-                        };
-                        case (?updatedEntity) {
-                            let jobDetails = Entity.extractKVPairsFromAttributeMap(updatedEntity.attributes);
-                            let updateClientDB = await updateClientDBInfo(clientID, job.sk, "working", 0);
+            if (Text.size(clientID) == 0) {
+                return #err("Invalid input: clientID must not be empty");
+            };
+
+            let skLowerBound = "job";  // Start of the range for client keys
+            let skUpperBound = "job~"; // End of the range for client keys
+            let limit = 1;  // Limit number of records to scan
+            let ascending = null;  // Not specifying order
+
+            // Create a filter for pending jobs
+            let pendingFilter = ?{
+                attributeName = "state";
+                operator = #equal;
+                value = #text("pending");
+            };
+
+            // Use CanDB.scan to retrieve job records
+            let { entities; nextKey } = CanDB.scan(
+                jobDB,
+                {
+                    skLowerBound = skLowerBound;
+                    skUpperBound = skUpperBound;
+                    limit = limit;
+                    ascending = ascending;
+                    filter = pendingFilter;
+                }
+            );
+
+            switch (entities.size()) {
+                case 0 {
+                    Debug.print("No pending jobs found");
+                    #err("No pending jobs available")
+                };
+                case _ {
+                    let job = entities[0];
+                    let jobID = job.sk;
+
+                    // Update job state to assigned
+                    let updatedJobResult = await updateJobState(jobID, clientID, "assigned", Time.now(), 0);
+                    
+                    switch (updatedJobResult) {
+                        case (#ok()) {
+                            // Update client state to working
+                            let updatedClientResult = await updateClientState(clientID, jobID, "working", Time.now());
                             
-                            switch (updateClientDB) {
+                            switch (updatedClientResult) {
                                 case (#ok()) {
-                                    // Client DB update was successful
                                     let jsonResponse = "{" #
                                         "\"status\": \"success\"," #
-                                        "\"message\": \"Job assigned successfully and client DB updated\"," #
-                                        "\"jobId\": \"" # updatedEntity.sk # "\"" #
+                                        "\"message\": \"Job assigned successfully\"," #
+                                        "\"jobId\": \"" # jobID # "\"," #
+                                        "\"clientId\": \"" # clientID # "\"" #
                                     "}";
                                     #ok(jsonResponse)
                                 };
-                                case (#err(errorMessage)) {
-                                    // Client DB update failed
-                                    let jsonResponse = "{" #
-                                        "\"status\": \"partial_success\"," #
-                                        "\"message\": \"Job assigned but failed to update client DB: " # errorMessage # "\"," #
-                                        "\"jobId\": \"" # updatedEntity.sk # "\"" #
-                                    "}";
-                                    #ok(jsonResponse)
+                                case (#err(errorMsg)) {
+                                    // Revert job state if client update fails
+                                    ignore updateJobState(jobID, clientID, "pending", 0, 0);
+                                    #err("Failed to update client state: " # errorMsg)
                                 };
                             }
-                        }
-                    };
+                        };
+                        case (#err(errorMsg)) {
+                            #err("Failed to update job state: " # errorMsg)
+                        };
+                    }
                 };
-                case (null) {
-                    // Handle the case where no job is found
-                    Debug.print("No pending jobs found");
-                    let jsonResponse = "{" #
-                        "\"status\": \"error\"," #
-                        "\"message\": \"No pending jobs available\"" #
-                    "}";
-                    #err(jsonResponse)
-                }
-            }
+            };
         }catch (error) {
             Debug.print("Error caught in job update: " # Error.message(error));
             return #err("Failed to update job: " # Error.message(error));
         }
     };
 
-    private func updateClientDBInfo(clientID: Text, jobID: Text, state: Text, lastAlive: Int) : async Result.Result<(), Text> {
+    private func updateClientState(clientID: Text, jobID: Text, state: Text, lastAlive: Int) : async Result.Result<(), Text> {
         Debug.print("Attempting to update client info with clientId: " # clientID);
 
         try {
@@ -565,6 +508,52 @@ actor polling {
                 case null {
                     Debug.print("Client does not exist with clientID: " # clientID);
                     #err("Client does not exist");
+                };
+            };
+        } catch (error) {
+            Debug.print("Error caught in client update: " # Error.message(error));
+            #err("Failed to update client: " # Error.message(error));
+        };
+    };
+
+    private func updateJobState(jobID: Text, clientID: Text, newState: Text, assignedAt: Int, completeAt: Int) : async Result.Result<(), Text> {
+        Debug.print("Attempting to update job info with jobID: " # jobID);
+
+        try {
+            let updatedAttributes = [
+                ("state", #text(newState)),
+                ("assignedAt", #int(assignedAt)),
+                ("completeAt", #int(completeAt)),
+                ("clientID", #text(clientID)),
+            ];
+
+            func updateAttributes(attributeMap : ?Entity.AttributeMap) : Entity.AttributeMap {
+                switch (attributeMap) {
+                    case null {
+                        Entity.createAttributeMapFromKVPairs(updatedAttributes);
+                    };
+                    case (?map) {
+                        Entity.updateAttributeMapWithKVPairs(map, updatedAttributes);
+                    };
+                }
+            };
+
+            let updated = switch (
+                CanDB.update(
+                    jobDB,
+                    {
+                        pk = "jobTable";
+                        sk = jobID;
+                        updateAttributeMapFunction = updateAttributes;
+                    },
+                ),
+            ) {
+                case null { 
+                    Debug.print("Failed to update job: " # jobID);
+                    #err("Failed to update job")
+                };
+                case (?updatedEntity) {
+                    #ok()
                 };
             };
         } catch (error) {
@@ -659,74 +648,18 @@ actor polling {
         }
     };
 
-    //internally runs
-    // private func checkClientTimeout() : async () {
-    //     let currentTime = Time.now();
-    //     let aliveTimeout = 5_000_000_000; // 5 seconds in nanoseconds
-
-    //     Debug.print("Checking client timeouts...");
-
-    //     let skLowerBound = "client";  // Start of the range for client keys
-    //     let skUpperBound = "client~"; // End of the range for client keys
-    //     let limit = 1000;  // Limit number of records to scan
-    //     let ascending = null;  // Not specifying order
-
-    //     // Use CanDB.scan to retrieve client records
-    //     let { entities; nextKey } = await CanDB.scan(
-    //         clientDB,
-    //         {
-    //             skLowerBound = skLowerBound;
-    //             skUpperBound = skUpperBound;
-    //             limit = limit;
-    //             ascending = ascending;
-    //         }
-    //     );
-
-    //     Debug.print("Total clients: " # debug_show(entities.size()));
-
-    //     for (entity in entities.vals()) {
-    //         Debug.print("Processing client: " # debug_show(entity));
-
-    //         let clientId = entity.sk;
-    //         let state = switch (Entity.getAttributeMapValueForKey(entity.attributes, "state")) {
-    //             case (?(#text(s))) s;
-    //             case _ "unknown";
-    //         };
-    //         let lastAlive = switch (Entity.getAttributeMapValueForKey(entity.attributes, "lastAlive")) {
-    //             case (?(#int(t))) t;
-    //             case _ 0;
-    //         };
-
-    //         if (state == "alive" and currentTime - lastAlive > aliveTimeout) {
-    //             let updateClientDB = await updateClientDBInfo(clientID, "", "dead", lastAlive);
-                            
-    //             switch (updateClientDB) {
-    //                 case (#ok()) {
-    //                     Debug.print("Client status updated to dead.");
-    //                 };
-    //                 case (#err(errorMessage)) {
-    //                     // Client DB update failed
-    //                     Debug.print("Eror. Client status not updated." # err);
-    //                 };
-    //             }
-    //         };
-    //     };
-
-    //     Debug.print("Client timeout check completed.");
-    // };
-
     public func clientAlive(clientID: Text) : async Text {
         Debug.print("Attempting to update client status for clientID: " # clientID);
 
         try {
             let timeNow = Time.now();
-            let updateResult = await updateClientDBInfo(clientID, "", "alive", timeNow);
+            let updateResult = await updateClientState(clientID, "", "alive", timeNow);
             
             switch (updateResult) {
                 case (#ok()) {
                     // Schedule the client to be marked as dead after 5 seconds
                     ignore Timer.setTimer<system>(#nanoseconds(5_000_000_000), func() : async () {
-                        let deadUpdateResult = await updateClientDBInfo(clientID, "", "dead", Time.now());
+                        let deadUpdateResult = await updateClientState(clientID, "", "dead", Time.now());
                         switch (deadUpdateResult) {
                             case (#ok()) {
                                 Debug.print("Client " # clientID # " automatically marked as dead after 5 seconds");
@@ -826,7 +759,7 @@ actor polling {
         
         // If no update in 5000ms, mark the client as dead
         try {
-            let updateResult = await updateClientDBInfo(clientId, "", "dead", Time.now());
+            let updateResult = await updateClientState(clientId, "", "dead", Time.now());
             switch (updateResult) {
                 case (#ok()) {
                     let jsonResponse = "{" #
@@ -866,19 +799,108 @@ actor polling {
         };
     };
 
+    func hourlyJobCheck() : async () {
+        Debug.print("Performing hourly job check...");
+
+        let currentTime = Time.now();
+        let deadTimeout = 3600_000_000_000; // 1 hour in nanoseconds
+
+        // Scan for jobs
+        let jobScanResult = CanDB.scan(
+            jobDB,
+            {
+                skLowerBound = "job";
+                skUpperBound = "job~";
+                limit = 1000;
+                ascending = null;
+                filter = ?{
+                    attributeName = "state";
+                    operator = #equal;
+                    value = #text("ongoing");
+                };
+            }
+        );
+
+        for (jobEntity in jobScanResult.entities.vals()) {
+            let job : JobStruct = {
+                jobID = jobEntity.sk;
+                jobType = switch (Entity.getAttributeMapValueForKey(jobEntity.attributes, "jobType")) {
+                    case (?(#text(t))) t;
+                    case _ "unknown";
+                };
+                target = switch (Entity.getAttributeMapValueForKey(jobEntity.attributes, "target")) {
+                    case (?(#text(t))) t;
+                    case _ "";
+                };
+                state = switch (Entity.getAttributeMapValueForKey(jobEntity.attributes, "state")) {
+                    case (?(#text(s))) s;
+                    case _ "unknown";
+                };
+                result = switch (Entity.getAttributeMapValueForKey(jobEntity.attributes, "result")) {
+                    case (?(#text(r))) r;
+                    case _ "";
+                };
+                clientId = switch (Entity.getAttributeMapValueForKey(jobEntity.attributes, "clientId")) {
+                    case (?(#text(c))) c;
+                    case _ "";
+                };
+                assignedAt = switch (Entity.getAttributeMapValueForKey(jobEntity.attributes, "assignedAt")) {
+                    case (?(#int(t))) t;
+                    case _ 0;
+                };
+                completeAt = switch (Entity.getAttributeMapValueForKey(jobEntity.attributes, "completeAt")) {
+                    case (?(#int(t))) t;
+                    case _ 0;
+                };
+            };
+
+            if (job.state == "ongoing") {
+                // Check if the client is dead
+                let clientResult = CanDB.get(clientDB, { pk = "clientTable"; sk = job.clientId });
+                
+                switch (clientResult) {
+                    case (?clientEntity) {
+                        let client : ClientStruct = {
+                            clientID = clientEntity.sk;
+                            state = switch (Entity.getAttributeMapValueForKey(clientEntity.attributes, "state")) {
+                                case (?(#text(s))) s;
+                                case _ "unknown";
+                            };
+                            jobID = switch (Entity.getAttributeMapValueForKey(clientEntity.attributes, "jobID")) {
+                                case (?(#text(j))) j;
+                                case _ "";
+                            };
+                            lastAlive = switch (Entity.getAttributeMapValueForKey(clientEntity.attributes, "lastAlive")) {
+                                case (?(#int(t))) t;
+                                case _ 0;
+                            };
+                        };
+
+                        if (client.state == "alive" and currentTime - client.lastAlive > deadTimeout) {
+                            // Update job status to pending
+                            let updateJobResult = await updateJobState(job.jobID, "", "pending", 0, 0);
+                            
+                            switch (updateJobResult) {
+                                case (#ok()) {
+                                    Debug.print("Job " # job.jobID # " updated: state = pending, assignedAt = 0, completeAt = 0");
+                                };
+                                case (#err(errorMessage)) {
+                                    Debug.print("Error updating job " # job.jobID # ": " # errorMessage);
+                                };
+                            };
+                        };
+                    };
+                    case (null) {
+                        Debug.print("Client not found for job: " # job.jobID);
+                    };
+                };
+            };
+        };
+
+        Debug.print("Hourly job check completed.");
+    };
+
+
     // Set up the recurring timer to check for client timeouts
-    //ignore Timer.recurringTimer(#seconds(60), checkClientTimeout);
-
-    // Function to be called every minute
-    // func minutelyJob() {
-    //     Debug.print("Performing minutely job...");
-    //     // Add your job logic here
-    // };
-
-    // // Set up the timer when the canister is deployed
-    // public func startScheduler() : async () {
-    //     // Schedule the job to run every minute (60 seconds)
-    //     let minuteInNanoseconds : Nat64 = 60_000_000_000;
-    //     Timer.recurringTimer(#nanoseconds(minuteInNanoseconds), minutelyJob);
-    // };
+    ignore Timer.recurringTimer<system>(#seconds(3600), hourlyJobCheck);
 }
