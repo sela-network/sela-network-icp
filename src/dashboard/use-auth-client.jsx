@@ -76,10 +76,8 @@ export const useAuthClient = (options = defaultOptions) => {
 
       if (searchParams.get('sessionkey')) {
         client = await AuthClient.create({ identity: newMiddleKey });
-        console.log('CLIENT 1');
       } else {
         client = await AuthClient.create(options.createOptions);
-        console.log('CLIENT 2');
       }
 
       // Update the client in your state or context
@@ -105,7 +103,6 @@ export const useAuthClient = (options = defaultOptions) => {
     setAuthClient(client);
 
     const isAuthenticated = await client.isAuthenticated();
-    console.log(isAuthenticated);
 
     const identity = client.getIdentity();
 
@@ -129,13 +126,6 @@ export const useAuthClient = (options = defaultOptions) => {
           new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
           { previous: identity.getDelegation() }
         );
-
-        console.log(
-          'expired: ',
-          new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
-        );
-
-        console.log('delegationChain', delegationChain);
 
         var delegationString = JSON.stringify(delegationChain.toJSON());
         var result = encodeURIComponent(delegationString);
