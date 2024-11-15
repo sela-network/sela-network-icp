@@ -13,6 +13,7 @@
     "prestart": "npm run generate",
     "build": "webpack --config webpack.config.js",
     "start": "webpack serve --open",
+    "start:react": "vite src/dashboard --config vite.config.react.js",
     "ic_start": "NODE_ENV=development NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 node src/scripts/script.mjs",
     "generate": "dfx generate backend"
   },
@@ -29,12 +30,15 @@
     "babel-loader": "^9.2.1",
     "buffer": "6.0.3",
     "copy-webpack-plugin": "^11.0.0",
+    "dotenv": "^16.0.3",
     "events": "3.3.0",
     "html-webpack-plugin": "5.5.0",
     "process": "0.11.10",
     "stream-browserify": "3.0.0",
     "terser-webpack-plugin": "^5.3.3",
     "util": "0.12.4",
+    "vite": "^4.5.3",
+    "vite-plugin-environment": "^1.1.3",
     "webpack": "^5.95.0",
     "webpack-cli": "^4.10.0",
     "webpack-dev-server": "^4.8.1"
@@ -57,6 +61,7 @@
     "node-forge": "^1.3.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-icons": "^5.3.0"
+    "react-icons": "^5.3.0",
+    "react-router-dom": "^6.28.0"
   }
 }

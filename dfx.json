@@ -23,17 +23,11 @@
       }
     },
     "frontend": {
-      "dependencies": [
-        "backend",
-        "internet_identity"
-      ],
+      "dependencies": ["backend", "internet_identity"],
       "frontend": {
         "entrypoint": "src/frontend/src/index.html"
       },
-      "source": [
-        "src/frontend/assets",
-        "dist/frontend/"
-      ],
+      "source": ["src/frontend/assets", "dist/frontend/"],
       "type": "assets"
     },
     "internet_identity": {
@@ -46,6 +40,14 @@
         }
       },
       "frontend": {}
+    },
+    "dashboard": {
+      "dependencies": ["backend", "internet_identity"],
+      "frontend": {
+        "entrypoint": "src/dashboard/index.html"
+      },
+      "source": ["src/dashboard/assets", "dist/"],
+      "type": "assets"
     }
   },
   "defaults": {
