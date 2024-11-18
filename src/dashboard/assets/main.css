@@ -113,13 +113,7 @@ a:focus {
   outline-offset: 2px;
 }
 
-img {
-  min-width: 500px;
-  width: 50vw;
-  max-width: 800px;
-  display: block;
-  margin: auto;
-}
+
 
 ul {
   width: 100%;
@@ -427,4 +421,9 @@ header {
 
 .hidden * {
   display: none;
+}
+
+.ant-layout-sider {
+  background-color: #131313;
+  padding: 64px 16px 64px 16px;
 }
