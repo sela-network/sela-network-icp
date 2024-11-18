@@ -903,4 +903,131 @@ actor polling {
 
     // Set up the recurring timer to check for client timeouts
     ignore Timer.recurringTimer<system>(#seconds(3600), hourlyJobCheck);
+
+    public query func http_request(request: HttpRequest) : async HttpResponse {
+    return {
+        status_code = 200;
+        headers = [("Content-Type", "text/plain")];
+        body = Text.encodeUtf8("This is a query response");
+        streaming_strategy = null;
+        upgrade = ?true;  // This indicates that the request should be upgraded to an update call
+    };
+  };
+
+  public func http_request_update(req : HttpRequest) : async HttpResponse {
+    let path = req.url;
+    let method = req.method;
+    let headers = req.headers;
+
+    Debug.print("path: " # debug_show (path));
+    Debug.print("method: " # debug_show (method));
+    Debug.print("headers: " # debug_show (headers));
+
+    switch (method, path) {
+      case ("POST", "/clientAlive") {
+        let authHeader = getHeader(headers, "authorization");
+        switch (authHeader) {
+          case null { 
+            Debug.print("Missing Authorization header ");
+            return badRequest("Missing Authorization header"); 
+          };
+          case (?clientID) {
+            let result = await clientAlive(clientID);
+            return {
+                status_code = 200;
+                headers = [("Content-Type", "application/json")];
+                body = Text.encodeUtf8(result);
+                streaming_strategy = null;
+                upgrade = null;
+            };
+          };
+        };   
+      };
+      case ("POST", "/clientPoll") {
+        let authHeader = getHeader(headers, "authorization");
+        switch (authHeader) {
+          case null { 
+            Debug.print("Missing Authorization header ");
+            return badRequest("Missing Authorization header"); 
+          };
+          case (?clientID) {
+            let result = await longPoll(clientID);
+            return {
+                status_code = 200;
+                headers = [("Content-Type", "application/json")];
+                body = Text.encodeUtf8(result);
+                streaming_strategy = null;
+                upgrade = null;
+            };
+          };
+        };   
+      };
+      case ("POST", "/assignJob") {
+        let authHeader = getHeader(headers, "authorization");
+        switch (authHeader) {
+          case null { 
+            Debug.print("Missing Authorization header ");
+            return badRequest("Missing Authorization header"); 
+          };
+          case (?clientID) {
+            let result = await assignJobToClient(clientID);
+            switch (result) {
+                case (#ok(successMessage)) {
+                    return {
+                        status_code = 200;
+                        headers = [("Content-Type", "application/json")];
+                        body = Text.encodeUtf8(successMessage);
+                        streaming_strategy = null;
+                        upgrade = null;
+                    };
+                };
+                case (#err(errorMessage)) {
+                    return {
+                        status_code = 400;
+                        headers = [("Content-Type", "application/json")];
+                        body = Text.encodeUtf8(errorMessage);
+                        streaming_strategy = null;
+                        upgrade = null;
+                    };
+                };
+            };
+          };
+        };   
+      };
+      case _ {
+        return notFound();
+      };
+    };
+  };
+
+  // Helper functions for HTTP responses
+  func badRequest(msg : Text) : HttpResponse {
+    {
+      status_code = 400;
+      headers = [("Content-Type", "text/plain")];
+      body = Text.encodeUtf8(msg);
+      streaming_strategy = null;
+      upgrade = null;
+    };
+  };
+
+  func notFound() : HttpResponse {
+    {
+      status_code = 404;
+      headers = [("Content-Type", "text/plain")];
+      body = Text.encodeUtf8("Not Found");
+      streaming_strategy = null;
+      upgrade = null;
+    };
+  };
+
+  // Helper function to get header value
+  func getHeader(headers : [(Text, Text)], name : Text) : ?Text {
+    for ((key, value) in headers.vals()) {
+        if (Text.equal(key, name)) {
+            return ?value;
+        };
+    };
+    null
+  };
 }
