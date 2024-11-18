@@ -6,7 +6,7 @@ import SelaLogo from './SelaLogo';
 import AppMenu from './AppMenu';
 import Spacing from './Spacing';
 
-const Nav = ({ menuItems, onMenuClick }) => {
+const Nav = ({ menuItems, onMenuClick, selectedMenu }) => {
   return (
     <Sider
       breakpoint="lg"
@@ -16,11 +16,15 @@ const Nav = ({ menuItems, onMenuClick }) => {
     >
       <SelaLogo />
 
-      <Spacing margin="64px" />
+      <Spacing margin={64} />
 
       {menuItems.map((item, index) => (
         <div key={index} onClick={() => onMenuClick(item)}>
-          <AppMenu leftIcon={item.leftIcon} text={item.text} />
+          <AppMenu
+            leftIcon={item.leftIcon}
+            text={item.text}
+            isActive={selectedMenu.text == item.text}
+          />
         </div>
       ))}
     </Sider>

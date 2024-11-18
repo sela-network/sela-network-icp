@@ -1,9 +1,10 @@
 import React from 'react';
 import { Space } from 'antd';
 
-import Icon from './Icon';
+import { Text, Icon } from './index';
+import Color from '../style/Color';
 
-const AppMenu = ({ leftIcon, text }) => {
+const AppMenu = ({ leftIcon, text, isActive }) => {
   return (
     <div
       style={{
@@ -16,11 +17,16 @@ const AppMenu = ({ leftIcon, text }) => {
     >
       <Space>
         <Icon name={leftIcon} />
-        <span style={{ color: '#fff', fontSize: 18 }}>{text}</span>
+        <Text
+          children={text}
+          size="18"
+          color={isActive ? Color.yellow : 'white'}
+          weight="semiBold"
+        />
       </Space>
       <Icon
         name="arrowRight"
-        backgroundColor="#131313"
+        backgroundColor={Color.black13}
         style={{ width: 16, height: 16 }}
       />
     </div>

@@ -4,6 +4,8 @@ import history from '../assets/icons/ic_history.svg';
 import gift from '../assets/icons/ic_gift.svg';
 import arrowRight from '../assets/icons/ic_arrow_right.svg';
 
+import Color from '../style/Color';
+
 const iconMap = {
   sela,
   history,
@@ -11,7 +13,7 @@ const iconMap = {
   arrowRight,
 };
 
-const Icon = ({ name, style, backgroundColor = '#1D1D1D', ...props }) => {
+const Icon = ({ name, style, backgroundColor = Color.semiGray, ...props }) => {
   const selectedIcon = iconMap[name];
 
   if (!selectedIcon) return null;
