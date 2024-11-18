@@ -1,19 +1,59 @@
 import React, { useState } from 'react';
 
+import { Row, Col, Table } from 'antd';
+
+import { Container } from '../component';
+import Color from '../style/Color';
+
 const RewardHistory = () => {
+  const dataSource = [
+    {
+      key: '1',
+      date: '01.02.2024 00:00:00',
+      reward: 'Node Referral',
+      uptime: '00 Days, 24 Hrs, 60 Min',
+      amount: '12,204.20 SP',
+      hash: 'db2919sd911123123...de23',
+    },
+  ];
+
+  const columns = [
+    {
+      title: 'Date',
+      dataIndex: 'date',
+      key: 'date',
+    },
+    {
+      title: 'Reward',
+      dataIndex: 'reward',
+      key: 'reward',
+    },
+    {
+      title: 'Uptime',
+      dataIndex: 'uptime',
+      key: 'uptime',
+    },
+    {
+      title: 'Amount',
+      dataIndex: 'amount',
+      key: 'amount',
+    },
+    {
+      title: 'Hash',
+      dataIndex: 'hash',
+      key: 'hash',
+    },
+  ];
+
   return (
     <>
-      <p>
-        Lorem Ipsum is simply dummy text of the printing and typesetting
-        industry. Lorem Ipsum has been the industry's standard dummy text ever
-        since the 1500s, when an unknown printer took a galley of type and
-        scrambled it to make a type specimen book. It has survived not only five
-        centuries, but also the leap into electronic typesetting, remaining
-        essentially unchanged. It was popularised in the 1960s with the release
-        of Letraset sheets containing Lorem Ipsum passages, and more recently
-        with desktop publishing software like Aldus PageMaker including versions
-        of Lorem Ipsum.
-      </p>
+      <Table
+        dataSource={dataSource}
+        columns={columns}
+        pagination={false}
+        style={{ backgroundColor: Color.black13, color: Color.yellow }}
+      />
+      ;
     </>
   );
 };

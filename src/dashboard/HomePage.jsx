@@ -18,7 +18,7 @@ const HomePage = () => {
     { leftIcon: 'gift', text: 'Reward Program', children: <RewardProgram /> },
   ];
 
-  const [selectedMenu, setSelectedMenu] = useState(menuItems[0]);
+  const [selectedMenu, setSelectedMenu] = useState(menuItems[1]);
 
   const handleMenuClick = (menu) => {
     setSelectedMenu(menu);
