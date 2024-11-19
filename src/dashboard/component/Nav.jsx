@@ -8,12 +8,7 @@ import Spacing from './Spacing';
 
 const Nav = ({ menuItems, onMenuClick, selectedMenu }) => {
   return (
-    <Sider
-      breakpoint="lg"
-      collapsedWidth="0"
-      width={350}
-      style={{ position: 'fixed', height: '100%', left: 0 }}
-    >
+    <Sider width={350} style={{ position: 'fixed', height: '100%', left: 0 }}>
       <SelaLogo />
 
       <Spacing margin={64} />
