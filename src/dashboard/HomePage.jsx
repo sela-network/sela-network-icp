@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from './use-auth-client';
 
-import { Nav, Text, Spacing } from './component';
+import { Nav, Spacing, Header } from './component';
 import { Dashboard, RewardHistory, RewardProgram } from './pages';
 
 import { Layout } from 'antd';
@@ -19,6 +19,19 @@ const HomePage = () => {
   ];
 
   const [selectedMenu, setSelectedMenu] = useState(menuItems[1]);
+  const { whoamiActor, logout } = useAuth();
+  const [principalId, setPrincipalId] = useState(null);
+
+  useEffect(() => {
+    const getPrincipalId = async () => {
+      const whoami = await whoamiActor.whoami();
+      console.log('whoami', whoami);
+      setPrincipalId(whoami);
+    };
+
+    // Call the async function
+    getPrincipalId();
+  }, []);
 
   const handleMenuClick = (menu) => {
     setSelectedMenu(menu);
@@ -49,7 +62,7 @@ const HomePage = () => {
               }}
             >
               {' '}
-              <Text children={selectedMenu.text} size="24" />
+              <Header title={selectedMenu.text} principalId={principalId} />
               <Spacing margin={32} />
               {selectedMenu.children}
             </div>
