@@ -25,7 +25,6 @@ const HomePage = () => {
   useEffect(() => {
     const getPrincipalId = async () => {
       const whoami = await whoamiActor.whoami();
-      console.log('whoami', whoami);
       setPrincipalId(whoami);
     };
 
