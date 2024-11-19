@@ -1,4 +1,8 @@
 [dependencies]
-base = "0.12.1"
+base = "0.13.3"
 ic-websocket-cdk = "0.4.0"
 candb = "1.0.8"
+"json.mo" = "0.1.2"
+json = "https://github.com/aviate-labs/json.mo#v0.2.0"
+serde = "3.2.1"
+http-parser = "0.3.3"
