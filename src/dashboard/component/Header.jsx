@@ -15,16 +15,16 @@ const Header = ({ title, principalId }) => {
         marginBottom: '32px',
       }}
     >
-      <Text children={title} size="18" weight="semiBold" />
+      <Text children={title} size={24} weight="semiBold" />
       <Space>
-        <Text children={'' + principalId} size="14" />
+        <Text children={'' + principalId} size={14} />
 
         <Avatar
           style={{
             backgroundColor: Color.semiGray,
           }}
         >
-          <Text children="A" size="18" weight="semiBold" />
+          <Text children="A" size={18} weight="semiBold" />
         </Avatar>
       </Space>
     </div>

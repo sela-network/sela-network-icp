@@ -452,3 +452,15 @@ header {
   src: url('./fonts/Urbanist/Urbanist-SemiBold.ttf') format('truetype');
   font-weight: 600;
 }
+
+.ant-table-thead>tr>th {
+  font-family: 'Urbanist';
+  font-weight: normal;
+  font-size: 14px;
+}
+
+/* .ant-table-thead>tr>th, */
+.ant-table-tbody>tr>td {
+  border: none !important;
+  border-collapse: collapse;
+}

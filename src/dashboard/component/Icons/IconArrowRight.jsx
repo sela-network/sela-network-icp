@@ -17,9 +17,9 @@ export default function IconArrowRight({
       <path
         d="M1 1.33325L5.66667 5.99992L1 10.6666"
         stroke={fillColor}
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );

@@ -1,7 +1,7 @@
 import React from 'react';
 
 const Text = ({
-  size = '16px', // Default size is 16px
+  size = 16, // Default size is 16px
   color = '#fff', // Default color is white
   weight = 'normal', // Default weight is normal
   decoration = 'none', // Default decoration is none

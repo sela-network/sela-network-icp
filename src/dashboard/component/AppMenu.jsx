@@ -19,7 +19,7 @@ const AppMenu = ({ leftIcon, text, isActive }) => {
         <Icon name={leftIcon} fillColor={isActive ? Color.yellow : 'white'} />
         <Text
           children={text}
-          size="18"
+          size={18}
           color={isActive ? Color.yellow : 'white'}
           weight="semiBold"
         />
