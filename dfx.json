@@ -22,6 +22,17 @@
         "node_compatibility": true
       }
     },
+    "newCanister": {
+      "main": "src/newCanister/newCanister.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/newCanister",
+        "node_compatibility": true
+      }
+    },
     "frontend": {
       "dependencies": ["backend", "internet_identity"],
       "frontend": {

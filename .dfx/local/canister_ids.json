@@ -14,6 +14,9 @@
   "internet_identity": {
     "local": "a3shf-5eaaa-aaaaa-qaafa-cai"
   },
+  "newCanister": {
+    "local": "aovwi-4maaa-aaaaa-qaagq-cai"
+  },
   "service_polling": {
     "local": "a4tbr-q4aaa-aaaaa-qaafq-cai"
   }
