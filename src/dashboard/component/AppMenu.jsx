@@ -16,7 +16,7 @@ const AppMenu = ({ leftIcon, text, isActive }) => {
       }}
     >
       <Space>
-        <Icon name={leftIcon} />
+        <Icon name={leftIcon} fillColor={isActive ? Color.yellow : 'white'} />
         <Text
           children={text}
           size="18"
