@@ -1,59 +1,60 @@
-import React, { useState } from 'react';
+import React from 'react';
 
-import { Row, Col, Table } from 'antd';
+import { Table, Space } from 'antd';
 
-import { Container } from '../component';
-import Color from '../style/Color';
+import { Container, Text, TableConfig, useStyle } from '../component';
+
+import iiLogo from '../assets/images/ii_powered.png';
+
+import { dataSource, columns } from './samples/history';
 
 const RewardHistory = () => {
-  const dataSource = [
-    {
-      key: '1',
-      date: '01.02.2024 00:00:00',
-      reward: 'Node Referral',
-      uptime: '00 Days, 24 Hrs, 60 Min',
-      amount: '12,204.20 SP',
-      hash: 'db2919sd911123123...de23',
-    },
-  ];
+  const { styles } = useStyle();
 
-  const columns = [
-    {
-      title: 'Date',
-      dataIndex: 'date',
-      key: 'date',
-    },
-    {
-      title: 'Reward',
-      dataIndex: 'reward',
-      key: 'reward',
-    },
-    {
-      title: 'Uptime',
-      dataIndex: 'uptime',
-      key: 'uptime',
-    },
-    {
-      title: 'Amount',
-      dataIndex: 'amount',
-      key: 'amount',
-    },
-    {
-      title: 'Hash',
-      dataIndex: 'hash',
-      key: 'hash',
-    },
-  ];
+  const Header = () => {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          width: '100%',
+          marginBottom: '32px',
+        }}
+      >
+        <Text
+          children="Shows the history of the nodes you provide to your clients, managed transparently through the ICP canister."
+          size={14}
+        />
+        <img
+          src={iiLogo}
+          width={188}
+          height={27}
+          alt="Internet Identity Logo"
+        />
+      </div>
+    );
+  };
 
   return (
     <>
-      <Table
-        dataSource={dataSource}
-        columns={columns}
-        pagination={false}
-        style={{ backgroundColor: Color.black13, color: Color.yellow }}
-      />
-      ;
+      <Header />
+      <Container>
+        <TableConfig>
+          <Table
+            className={styles.customTable}
+            dataSource={dataSource}
+            columns={columns}
+            pagination={false}
+            bordered={false}
+            showHeader={true}
+            size="small"
+            scroll={{
+              x: 'max-content',
+            }}
+          />
+        </TableConfig>
+      </Container>
     </>
   );
 };
