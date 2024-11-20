@@ -5,9 +5,14 @@ import LoggedOut from './LoggedOut';
 import { useAuth, AuthProvider } from './use-auth-client';
 import './assets/main.css';
 import LoggedIn from './LoggedIn';
+import HomePage from './HomePage';
 
 function App() {
   const { isAuthenticated, identity } = useAuth();
+
+  if (isAuthenticated) {
+    return <HomePage />;
+  }
 
   return (
     <>
