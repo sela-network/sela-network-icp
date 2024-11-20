@@ -126,7 +126,7 @@ actor polling {
                 case null {
                     // Job doesn't exist, proceed with insertion
                     Debug.print("New client");
-                    let entity = createClientEntity(clientID, "new");
+                    let entity = createClientEntity(clientID, "dead");
                     Debug.print("Client entity creation done ");
                     await* CanDB.put(clientDB, entity);
                     Debug.print("Entity inserted successfully for clientID: " # clientID);
@@ -707,6 +707,30 @@ actor polling {
         var jsonResponse : Text = "";
 
         try {
+
+            //check if client exists
+            let existingClient = CanDB.get(clientDB, { pk = "clientTable"; sk = clientID });
+
+            switch (existingClient) {
+                case null {
+                    Debug.print("Client not found for clientID: " # clientID);
+                    let registerClient = await addClientToDB(clientID);
+                    switch (registerClient) {
+                        case (#ok(successMessage)) {
+                            Debug.print("Client added to DB for clientID: " # clientID);
+                        };
+                        case (#err(errorMessage)) {
+                            jsonResponse := createJsonResponse("error", "Failed to update client status: " # errorMessage, clientID, "dead");
+                            return jsonResponse;
+                        };
+                    };
+                };
+                case (?entity) {
+                    //do nothing
+                    Debug.print("Client found for clientID: " # clientID);
+                };
+            };
+
             // Mark client as alive
             let timeNow = Time.now();
             let updateResult = await updateClientStateToAliveOrDead(clientID, "alive", timeNow);
@@ -1045,7 +1069,22 @@ actor polling {
                                                 return badRequest(errorMessage);
                                             };
                                         };
-                                    }
+                                    };
+                                    case (#Array(_)) {
+                                        return badRequest("Unexpected JSON array");
+                                    };
+                                    case (#Boolean(_)) {
+                                        return badRequest("Unexpected JSON boolean");
+                                    };
+                                    case (#Null) {
+                                        return badRequest("Unexpected JSON null");
+                                    };
+                                    case (#Number(_)) {
+                                        return badRequest("Unexpected JSON number");
+                                    };
+                                    case (#String(_)) {
+                                        return badRequest("Unexpected JSON string");
+                                    };
                                 }
                             }
                         };
