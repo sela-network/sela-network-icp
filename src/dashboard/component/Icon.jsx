@@ -1,29 +1,28 @@
 import React from 'react';
-import sela from '../assets/icons/ic_sela.svg';
-import history from '../assets/icons/ic_history.svg';
-import gift from '../assets/icons/ic_gift.svg';
-import arrowRight from '../assets/icons/ic_arrow_right.svg';
+
+import IconArrowRight from './Icons/IconArrowRight';
+import IconGift from './Icons/IconGift';
+import IconHistory from './Icons/IconHistory';
+import IconSela from './Icons/IconSela';
 
 import Color from '../style/Color';
 
 const iconMap = {
-  sela,
-  history,
-  gift,
-  arrowRight,
+  sela: IconSela,
+  history: IconHistory,
+  gift: IconGift,
+  arrowRight: IconArrowRight,
 };
 
 const Icon = ({ name, style, backgroundColor = Color.semiGray, ...props }) => {
-  const selectedIcon = iconMap[name];
+  const SelectedIcon = iconMap[name];
 
-  if (!selectedIcon) return null;
+  if (!SelectedIcon) return null;
 
   // Define default styles
   const defaultStyle = {
     width: '24px',
     height: '24px',
-    color: '#fff',
-    fill: 'currentColor', // Allows color customization via CSS or style
     ...style, // Override default styles with passed-in `style` prop
   };
 
@@ -38,7 +37,7 @@ const Icon = ({ name, style, backgroundColor = Color.semiGray, ...props }) => {
         alignItems: 'center',
       }}
     >
-      <img src={selectedIcon} style={defaultStyle} {...props} />
+      <SelectedIcon style={defaultStyle} {...props} />
     </div>
   );
 };
