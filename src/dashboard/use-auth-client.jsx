@@ -138,7 +138,7 @@ export const useAuthClient = (options = defaultOptions) => {
         searchParams.delete('sessionkey');
         setSearchParams(searchParams);
 
-        window.location.href = `${redirectScheme}://${redirectHost}?del=${result}&status=true`;
+        window.location.href = `${redirectHost}://${redirectScheme}?del=${result}&status=true`;
 
         logout();
       }
