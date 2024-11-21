@@ -11,9 +11,8 @@
   "scripts": {
     "prebuild": "npm run generate",
     "prestart": "npm run generate",
-    "build": "webpack --config webpack.config.js",
-    "start": "webpack serve --open",
-    "start:react": "vite src/dashboard --config vite.config.react.js",
+    "build": "vite build src/dashboard --config vite.config.react.js",
+    "start": "vite src/dashboard --config vite.config.react.js",
     "ic_start": "NODE_ENV=development NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 node src/scripts/script.mjs",
     "generate": "dfx generate backend"
   },
