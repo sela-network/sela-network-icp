@@ -707,16 +707,19 @@ actor polling {
             switch (updateResult) {
                 case (#ok()) {
                     // Wait for 5 seconds
-                    await waitForSeconds(5); // This will block the execution for 5 seconds
+                   // await waitForSeconds(5);
+                   await awaitTimer(5); // Wait for 5 seconds
 
-                    // Mark the client as "dead" after 5 seconds
+                    // After waiting, mark the client as "dead"
                     let deadUpdateResult = await updateClientStateToAliveOrDead(clientID, "dead", Time.now());
                     
                     switch (deadUpdateResult) {
                         case (#ok()) {
+                            Debug.print("Client " # clientID # " marked as dead after 5 seconds");
                             jsonResponse := createJsonResponse("success", "Client was alive, now marked as dead", clientID, "dead");
                         };
                         case (#err(errorMsg)) {
+                            Debug.print("Failed to mark client " # clientID # " as dead: " # errorMsg);
                             jsonResponse := createJsonResponse("error", "Failed to mark client as dead: " # errorMsg, clientID, "unknown");
                         };
                     };
@@ -734,12 +737,23 @@ actor polling {
         return jsonResponse;
     };
 
+    
+    public func awaitTimer(duration: Nat) : async () {
+        return await async {
+            let start = Time.now();
+            let end = start + (duration * 1_000_000_000);
+            while (start < end) {
+                await async {};
+            };
+        };
+    };
+
     // Function to wait for a specified number of seconds (blocks execution for the delay)
-    private func waitForSeconds(seconds: Nat) : async () {
+   private func waitForSeconds(seconds: Nat) : async () {
         let start = Time.now();
-        let targetTime = start + (seconds * 1_000_000_000); // Convert seconds to nanoseconds
+        let targetTime = start + (seconds * 1_000_000_000);
         while (Time.now() < targetTime) {
-            await async (); // Yield control to allow other messages to be processed
+            await async { /* empty */ };
         };
     };
 
