@@ -2,11 +2,9 @@ import React from 'react';
 import { Layout } from 'antd';
 const { Footer, Sider } = Layout;
 
-import SelaLogo from './SelaLogo';
-import AppMenu from './AppMenu';
-import Spacing from './Spacing';
+import { SelaLogo, AppMenu, Spacing, Text } from './index';
 
-const Nav = ({ menuItems, onMenuClick, selectedMenu }) => {
+const Nav = ({ menuItems, onMenuClick, selectedMenu, onLogout }) => {
   return (
     <Sider width={350} style={{ position: 'fixed', height: '100%', left: 0 }}>
       <SelaLogo />
@@ -22,6 +20,12 @@ const Nav = ({ menuItems, onMenuClick, selectedMenu }) => {
           />
         </div>
       ))}
+
+      <Spacing margin={32} />
+
+      <div onClick={onLogout}>
+        <Text children={'Logout'} />
+      </div>
     </Sider>
   );
 };

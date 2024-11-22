@@ -43,6 +43,7 @@ const HomePage = () => {
           menuItems={menuItems}
           onMenuClick={handleMenuClick}
           selectedMenu={selectedMenu}
+          onLogout={logout}
         />
 
         <Layout style={{ background: '#000', marginLeft: 350 }}>

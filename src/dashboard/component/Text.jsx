@@ -11,7 +11,7 @@ const Text = ({
   const fontWeightMap = {
     normal: 'normal',
     bold: 'bold',
-    light: '300',
+    light: '400',
     semiBold: '600',
   };
 
