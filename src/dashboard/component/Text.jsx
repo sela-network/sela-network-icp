@@ -7,6 +7,7 @@ const Text = ({
   decoration = 'none', // Default decoration is none
   children, // The text to display
   style = {}, // Additional custom styles
+  onClick,
 }) => {
   const fontWeightMap = {
     normal: 'normal',
@@ -17,6 +18,7 @@ const Text = ({
 
   return (
     <span
+      onClick={onClick}
       style={{
         fontSize: size,
         color: color,
