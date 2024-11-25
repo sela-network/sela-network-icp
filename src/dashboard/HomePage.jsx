@@ -9,7 +9,11 @@ const { Content } = Layout;
 
 const HomePage = () => {
   const menuItems = [
-    { leftIcon: 'sela', text: 'Dashboard', children: <Dashboard /> },
+    {
+      leftIcon: 'sela',
+      text: 'Dashboard',
+      children: <Dashboard />,
+    },
     {
       leftIcon: 'history',
       text: 'Reward History',
@@ -39,6 +43,10 @@ const HomePage = () => {
 
   const setProfileMenu = () => {
     setShowProfileMenu(!showProfileMenu);
+  };
+
+  const handleMoreClick = () => {
+    setSelectedMenu(menuItems[1]);
   };
 
   return (
@@ -77,7 +85,11 @@ const HomePage = () => {
                 logout={logout}
               />
               <Spacing margin={32} />
-              {selectedMenu.children}
+              {selectedMenu.text === 'Dashboard' ? (
+                <Dashboard handleMoreClick={handleMoreClick} />
+              ) : (
+                selectedMenu.children
+              )}
             </div>
           </Content>
         </Layout>

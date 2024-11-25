@@ -9,6 +9,8 @@ const Container = ({ background = Color.semiGray, children }) => {
         background: background,
         padding: 24,
         borderRadius: 30,
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       {children}
