@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from './use-auth-client';
 
-import { Nav, Spacing, Header, Text, HeaderModal } from './component';
-import Color from './style/Color';
+import { Nav, Spacing, Header, HeaderModal } from './component';
 import { Dashboard, RewardHistory, RewardProgram } from './pages';
 
-import { Layout, Modal, Avatar, Button } from 'antd';
+import { Layout } from 'antd';
 const { Content } = Layout;
 
 const HomePage = () => {
@@ -19,7 +18,7 @@ const HomePage = () => {
     { leftIcon: 'gift', text: 'Reward Program', children: <RewardProgram /> },
   ];
 
-  const [selectedMenu, setSelectedMenu] = useState(menuItems[1]);
+  const [selectedMenu, setSelectedMenu] = useState(menuItems[0]);
   const { whoamiActor, logout } = useAuth();
   const [principalId, setPrincipalId] = useState(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
