@@ -1,9 +1,8 @@
+import Principal "mo:base/Principal";
 import Time "mo:base/Time";
 import Timer "mo:base/Timer";
-import HashMap "mo:base/HashMap";
 import Text "mo:base/Text";
 import Int "mo:base/Int";
-import Iter "mo:base/Iter";
 import Result "mo:base/Result";
 import CanDB "mo:candb/CanDB";
 import Error "mo:base/Error";
@@ -13,7 +12,6 @@ import Entity "mo:candb/Entity";
 import Debug "mo:base/Debug";
 import Array "mo:base/Array";
 import Nat = "mo:base/Nat";
-import Blob "mo:base/Blob";
 import JSON "mo:json/JSON";
 
 actor polling {
@@ -23,7 +21,7 @@ actor polling {
 
     type ClientStruct = {
         clientID : Text;
-        state : Text; // Possible states: "alive", "dead", "working"
+        state : Text; // Possible states: "alive", "dead"
         jobID : Text;
         jobStatus : Text;
         lastAlive : Int;
@@ -54,15 +52,12 @@ actor polling {
         scalingOptions = scalingOptions;
         btreeOrder = null;
     });
+
     stable let jobDB = CanDB.init({
         pk = "jobTable";
         scalingOptions = scalingOptions;
         btreeOrder = null;
     });
-
-    // Timeout thresholds
-    let aliveTimeout : Int = 5_000_000_000; // 5000ms in nanoseconds
-    let pollInterval : Int = 1_000_000_000; // 1000ms for the polling interval
 
     private func createClientEntity(clientID : Text, state : Text) : {
         pk : Text;
@@ -132,7 +127,8 @@ actor polling {
 
     public shared func addJobToDB(jobType : Text, target : Text) : async Result.Result<Text, Text> {
         let randomGenerator = Random.new();
-        let jobId = await randomGenerator.next();
+        let jobId_ = await randomGenerator.next();
+        let jobId = "job" # jobId_;
         Debug.print("Attempting to insert job with jobID: " # jobId);
 
         if (Text.size(jobId) == 0) {
@@ -677,6 +673,9 @@ actor polling {
         var jsonResponse : Text = "";
 
         try {
+            // Validate the clientID as a Principal
+            //let _ = Principal.fromText(clientID);
+
             // Check if the client exists in the database
             let existingClient = CanDB.get(clientDB, { pk = "clientTable"; sk = clientID });
 
@@ -688,6 +687,7 @@ actor polling {
                     switch (registerClient) {
                         case (#ok(successMessage)) {
                             Debug.print("Client added to DB for clientID: " # clientID);
+                            return createJsonResponse("success", "New Client added to DB, pls call again to make the client alive", clientID, "dead");
                         };
                         case (#err(errorMessage)) {
                             return createJsonResponse("error", "Failed to update client status: " # errorMessage, clientID, "dead");
@@ -696,97 +696,69 @@ actor polling {
                 };
                 case (?entity) {
                     // Client found, continue without changes
+                    let client : ClientStruct = {
+                        clientID = entity.sk;
+                        state = switch (Entity.getAttributeMapValueForKey(entity.attributes, "state")) {
+                            case (?(#text(s))) s;
+                            case _ "unknown";
+                        };
+                        jobID = switch (Entity.getAttributeMapValueForKey(entity.attributes, "jobID")) {
+                            case (?(#text(j))) j;
+                            case _ "";
+                        };
+                        jobStatus = switch (Entity.getAttributeMapValueForKey(entity.attributes, "jobStatus")) {
+                            case (?(#text(j))) j;
+                            case _ "";
+                        };
+                        lastAlive = switch (Entity.getAttributeMapValueForKey(entity.attributes, "lastAlive")) {
+                            case (?(#int(t))) t;
+                            case _ 0;
+                        };
+                    };
+
                     Debug.print("Client found for clientID: " # clientID);
-                };
-            };
+                    // Mark the client as "alive"
+                    let timeNow = Time.now();
+                    let updateResult = await updateClientStateToAliveOrDead(clientID, "alive", timeNow);
 
-            // Mark the client as "alive"
-            let timeNow = Time.now();
-            let updateResult = await updateClientStateToAliveOrDead(clientID, "alive", timeNow);
-
-            switch (updateResult) {
-                case (#ok()) {
-                    // Wait for 5 seconds
-                   // await waitForSeconds(5);
-                   await awaitTimer(5); // Wait for 5 seconds
-
-                    // After waiting, mark the client as "dead"
-                    let deadUpdateResult = await updateClientStateToAliveOrDead(clientID, "dead", Time.now());
-                    
-                    switch (deadUpdateResult) {
+                    switch (updateResult) {
                         case (#ok()) {
-                            Debug.print("Client " # clientID # " marked as dead after 5 seconds");
-                            jsonResponse := createJsonResponse("success", "Client was alive, now marked as dead", clientID, "dead");
+                            if (client.jobID != "") {
+                                // Return the response immediately after marking the client as alive
+                                jsonResponse := createJsonResponse("success", "Client is alive and working, waiting for 6 seconds", clientID, "alive");
+                            } else{
+                                // Return the response immediately after marking the client as alive
+                                jsonResponse := createJsonResponse("success", "Client is alive, waiting for 6 seconds", clientID, "alive");
+                            };
+
+                            // Run a timer in the background to mark the client as "dead" after 6 seconds
+                            ignore Timer.setTimer<system>(#nanoseconds(6_000_000_000), func() : async () {
+                                let deadUpdateResult = await updateClientStateToAliveOrDead(clientID, "dead", Time.now());
+                                
+                                switch (deadUpdateResult) {
+                                    case (#ok()) {
+                                        Debug.print("Client " # clientID # " marked as dead after 6 seconds");
+                                    };
+                                    case (#err(errorMsg)) {
+                                        Debug.print("Failed to mark client " # clientID # " as dead: " # errorMsg);
+                                    };
+                                };
+                            });
+
+                            return jsonResponse; // Respond immediately
                         };
                         case (#err(errorMsg)) {
-                            Debug.print("Failed to mark client " # clientID # " as dead: " # errorMsg);
-                            jsonResponse := createJsonResponse("error", "Failed to mark client as dead: " # errorMsg, clientID, "unknown");
+                            jsonResponse := createJsonResponse("error", "Failed to update client state: " # errorMsg, clientID, "unknown");
                         };
                     };
                 };
-                case (#err(errorMsg)) {
-                    jsonResponse := createJsonResponse("error", "Failed to update client state: " # errorMsg, clientID, "unknown");
-                };
             };
-
         } catch (error) {
             Debug.print("Error in clientAlive: " # Error.message(error));
             jsonResponse := createJsonResponse("error", "An unexpected error occurred", clientID, "unknown");
         };
 
         return jsonResponse;
-    };
-
-    
-    public func awaitTimer(duration: Nat) : async () {
-        return await async {
-            let start = Time.now();
-            let end = start + (duration * 1_000_000_000);
-            while (start < end) {
-                await async {};
-            };
-        };
-    };
-
-    // Function to wait for a specified number of seconds (blocks execution for the delay)
-   private func waitForSeconds(seconds: Nat) : async () {
-        let start = Time.now();
-        let targetTime = start + (seconds * 1_000_000_000);
-        while (Time.now() < targetTime) {
-            await async { /* empty */ };
-        };
-    };
-
-    // Helper function to set client to "dead" after the given delay
-    private func setClientDeadAfterDelay(clientID: Text, delay: Nat) : async Text {
-        // Set a timer to mark the client as "dead" after the specified delay
-        ignore Timer.setTimer<system>(
-            #nanoseconds(delay),  // Delay for 5 seconds
-            func() : async () {
-                // After the delay, mark the client as "dead"
-                let deadUpdateResult = await updateClientStateToAliveOrDead(clientID, "dead", Time.now());
-
-                switch (deadUpdateResult) {
-                    case (#ok()) {
-                        Debug.print("Client " # clientID # " automatically marked as dead after 5 seconds");
-                    };
-                    case (#err(errorMsg)) {
-                        Debug.print("Failed to mark client " # clientID # " as dead: " # errorMsg);
-                    };
-                };
-            }
-        );
-
-        return "Client will be marked as dead after 5 seconds"; // You can return this message to inform the client
-    };
-
-    // Create a helper function for delay
-    private func delay(duration : Nat) : async () {
-        let start = Time.now();
-        var current = start;
-        while (current - start < duration) {
-            current := Time.now();
-        };
     };
 
     func hourlyJobCheck() : async () {
@@ -1090,36 +1062,6 @@ actor polling {
         for ((key, value) in headers.vals()) {
             if (Text.equal(key, name)) {
                 return ?value;
-            };
-        };
-        null;
-    };
-
-    func getQueryParam(url : Text, param : Text) : ?Text {
-        let parts = Text.split(url, #char '?');
-        let queryString = switch (parts.next()) {
-            case null { return null }; // No '?' in URL
-            case (?_) {
-                switch (parts.next()) {
-                    case null { return null }; // Nothing after '?'
-                    case (?qs) { qs };
-                };
-            };
-        };
-
-        let queryParts = Text.split(queryString, #char '&');
-        for (part in queryParts) {
-            let keyValue = Text.split(part, #char '=');
-            switch (keyValue.next()) {
-                case (?key) {
-                    if (Text.equal(key, param)) {
-                        switch (keyValue.next()) {
-                            case (?value) { return ?value };
-                            case null { return null };
-                        };
-                    };
-                };
-                case null {};
             };
         };
         null;

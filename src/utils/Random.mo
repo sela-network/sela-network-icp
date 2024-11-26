@@ -13,7 +13,7 @@ module {
         let randomBytes = await Random.blob();
         let randomNat = bytesToNat(Blob.toArray(randomBytes));
         let trimmedNat = randomNat % 1000000; // This will give a number between 0 and 999999
-        "job" # padWithZeros(Nat.toText(trimmedNat), 6)
+        padWithZeros(Nat.toText(trimmedNat), 6)
       };
     };
 

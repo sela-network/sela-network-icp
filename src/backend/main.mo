@@ -10,6 +10,7 @@ import Error "mo:base/Error";
 import HTTP "../utils/Http";
 import Entity "mo:candb/Entity";
 import Float "mo:base/Float";
+import Random "../utils/Random";
 
 actor Main {
 
@@ -98,9 +99,11 @@ actor Main {
         };
         case null {
           // User doesn't exist, proceed with insertion
-          //   let referralCode = generateReferralCode();
+          let randomGenerator = Random.new();
+          let referralCode_ =  await randomGenerator.next();
+          let referralCode = "#ref" # referralCode_;
           Debug.print("New user");
-          let entity = createUserEntity(principalID, 0.0, 0.0, "referralCode", 0.0);
+          let entity = createUserEntity(principalID, 0.0, 0.0, referralCode, 0.0);
           Debug.print("Entity creation done ");
           await* CanDB.put(userDB, entity);
           Debug.print("Entity inserted successfully for principalID: " # principalID);
@@ -254,31 +257,6 @@ actor Main {
                   status_code = 200;
                   headers = [("Content-Type", "application/json")];
                   body = Text.encodeUtf8(jsonBody);
-                  streaming_strategy = null;
-                  upgrade = null;
-                };
-              };
-              case (#err(errorMsg)) {
-                return badRequest(errorMsg);
-              };
-            };
-          };
-        };
-      };
-      case ("POST", "/registerUser") {
-        let authHeader = getHeader(headers, "authorization");
-        switch (authHeader) {
-          case null {
-            Debug.print("Missing Authorization header ");
-            return badRequest("Missing Authorization header");
-          };
-          case (?principalID) {
-            switch (await insertUserData(principalID)) {
-              case (#ok(_)) {
-                return {
-                  status_code = 200;
-                  headers = [("Content-Type", "text/plain")];
-                  body = Text.encodeUtf8("User registered successfully");
                   streaming_strategy = null;
                   upgrade = null;
                 };
