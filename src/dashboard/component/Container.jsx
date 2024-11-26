@@ -2,7 +2,12 @@ import React from 'react';
 
 import Color from '../style/Color';
 
-const Container = ({ background = Color.semiGray, children }) => {
+const Container = ({
+  background = Color.semiGray,
+  children,
+  alignItems = 'normal',
+  style,
+}) => {
   return (
     <div
       style={{
@@ -11,6 +16,9 @@ const Container = ({ background = Color.semiGray, children }) => {
         borderRadius: 30,
         display: 'flex',
         flexDirection: 'column',
+        alignItems: alignItems,
+        gap: 16,
+        ...style,
       }}
     >
       {children}

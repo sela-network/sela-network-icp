@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from './use-auth-client';
 
-import { Nav, Spacing, Header, HeaderModal } from './component';
+import { Nav, Spacing, Header, HeaderModal, Column } from './component';
 import { Dashboard, RewardHistory, RewardProgram } from './pages';
 
 import { Layout } from 'antd';
@@ -65,15 +65,7 @@ const HomePage = () => {
               overflow: 'auto', // Allows scrolling when content is too large
             }}
           >
-            <div
-              style={{
-                width: '100%',
-                height: '2000px',
-                marginTop: 35,
-                textAlign: 'left',
-              }}
-            >
-              {' '}
+            <Column>
               <Header
                 title={selectedMenu.text}
                 principalId={principalId}
@@ -90,7 +82,7 @@ const HomePage = () => {
               ) : (
                 selectedMenu.children
               )}
-            </div>
+            </Column>
           </Content>
         </Layout>
       </Layout>
