@@ -1,13 +1,13 @@
 import React from 'react';
 
-const Column = ({ children, justifyContent = 'space-between' }) => {
+const Column = ({ children, spacing = 16, flex = 1 }) => {
   return (
     <div
       style={{
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: justifyContent,
-        gap: 16,
+        gap: spacing,
+        flex: flex,
       }}
     >
       {children}

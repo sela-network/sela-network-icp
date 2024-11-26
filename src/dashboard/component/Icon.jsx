@@ -4,6 +4,7 @@ import IconArrowRight from './Icons/IconArrowRight';
 import IconGift from './Icons/IconGift';
 import IconHistory from './Icons/IconHistory';
 import IconSela from './Icons/IconSela';
+import IconPhone from './Icons/IconPhone';
 
 import Color from '../style/Color';
 
@@ -12,9 +13,17 @@ const iconMap = {
   history: IconHistory,
   gift: IconGift,
   arrowRight: IconArrowRight,
+  phone: IconPhone,
 };
 
-const Icon = ({ name, style, backgroundColor = Color.semiGray, ...props }) => {
+const Icon = ({
+  name,
+  style,
+  backgroundColor = Color.semiGray,
+  borderColor = Color.semiGray,
+  useBackground = true,
+  ...props
+}) => {
   const SelectedIcon = iconMap[name];
 
   if (!SelectedIcon) return null;
@@ -26,11 +35,13 @@ const Icon = ({ name, style, backgroundColor = Color.semiGray, ...props }) => {
     ...style, // Override default styles with passed-in `style` prop
   };
 
-  return (
+  return useBackground ? (
     <div
       style={{
-        padding: 12,
+        padding: 8,
         background: backgroundColor,
+        border: '1px solid',
+        borderColor: borderColor,
         borderRadius: 100,
         display: 'flex',
         justifyContent: 'center',
@@ -39,6 +50,8 @@ const Icon = ({ name, style, backgroundColor = Color.semiGray, ...props }) => {
     >
       <SelectedIcon style={defaultStyle} {...props} />
     </div>
+  ) : (
+    <SelectedIcon style={defaultStyle} {...props} />
   );
 };
 

@@ -3,10 +3,12 @@ import React from 'react';
 import Color from '../style/Color';
 
 const Container = ({
-  background = Color.semiGray,
+  background = Color.black13,
   children,
   alignItems = 'normal',
   style,
+  spacing = 16,
+  flex = 1,
 }) => {
   return (
     <div
@@ -17,7 +19,8 @@ const Container = ({
         display: 'flex',
         flexDirection: 'column',
         alignItems: alignItems,
-        gap: 16,
+        gap: spacing,
+        flex: flex,
         ...style,
       }}
     >
