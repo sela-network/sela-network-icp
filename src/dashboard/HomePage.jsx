@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from './use-auth-client';
 
-import { Nav, Spacing, Header } from './component';
+import { Nav, Spacing, Header, HeaderModal, Column } from './component';
 import { Dashboard, RewardHistory, RewardProgram } from './pages';
 
 import { Layout } from 'antd';
@@ -9,7 +9,11 @@ const { Content } = Layout;
 
 const HomePage = () => {
   const menuItems = [
-    { leftIcon: 'sela', text: 'Dashboard', children: <Dashboard /> },
+    {
+      leftIcon: 'sela',
+      text: 'Dashboard',
+      children: <Dashboard />,
+    },
     {
       leftIcon: 'history',
       text: 'Reward History',
@@ -18,9 +22,10 @@ const HomePage = () => {
     { leftIcon: 'gift', text: 'Reward Program', children: <RewardProgram /> },
   ];
 
-  const [selectedMenu, setSelectedMenu] = useState(menuItems[1]);
+  const [selectedMenu, setSelectedMenu] = useState(menuItems[0]);
   const { whoamiActor, logout } = useAuth();
   const [principalId, setPrincipalId] = useState(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
     const getPrincipalId = async () => {
@@ -34,6 +39,14 @@ const HomePage = () => {
 
   const handleMenuClick = (menu) => {
     setSelectedMenu(menu);
+  };
+
+  const setProfileMenu = () => {
+    setShowProfileMenu(!showProfileMenu);
+  };
+
+  const handleMoreClick = () => {
+    setSelectedMenu(menuItems[1]);
   };
 
   return (
@@ -52,19 +65,24 @@ const HomePage = () => {
               overflow: 'auto', // Allows scrolling when content is too large
             }}
           >
-            <div
-              style={{
-                width: '100%',
-                height: '2000px',
-                marginTop: 35,
-                textAlign: 'left',
-              }}
-            >
-              {' '}
-              <Header title={selectedMenu.text} principalId={principalId} />
+            <Column>
+              <Header
+                title={selectedMenu.text}
+                principalId={principalId}
+                setProfileMenu={setProfileMenu}
+              />
+              <HeaderModal
+                open={showProfileMenu}
+                onCancel={setShowProfileMenu}
+                logout={logout}
+              />
               <Spacing margin={32} />
-              {selectedMenu.children}
-            </div>
+              {selectedMenu.text === 'Dashboard' ? (
+                <Dashboard handleMoreClick={handleMoreClick} />
+              ) : (
+                selectedMenu.children
+              )}
+            </Column>
           </Content>
         </Layout>
       </Layout>

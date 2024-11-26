@@ -26,7 +26,7 @@ const dataSource = [
 const renderColumn = ({ text, color = '#fff' }) => {
   return {
     props: {
-      style: { background: Color.semiGray },
+      style: { background: Color.black13 },
     },
     children: (
       <div>

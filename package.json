@@ -11,9 +11,8 @@
   "scripts": {
     "prebuild": "npm run generate",
     "prestart": "npm run generate",
-    "build": "webpack --config webpack.config.js",
-    "start": "webpack serve --open",
-    "start:react": "vite src/dashboard --config vite.config.react.js",
+    "build": "vite build src/dashboard --config vite.config.react.js",
+    "start": "vite src/dashboard --config vite.config.react.js",
     "ic_start": "NODE_ENV=development NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 node src/scripts/script.mjs",
     "generate": "dfx generate backend"
   },
@@ -55,6 +54,10 @@
   "dependencies": {
     "@ant-design/icons": "^5.5.1",
     "@dfinity/identity-secp256k1": "^2.1.3",
+    "@emotion/react": "^11.13.5",
+    "@emotion/styled": "^11.13.5",
+    "@mui/material": "^6.1.8",
+    "@mui/x-charts": "^7.22.3",
     "antd": "^5.22.1",
     "antd-style": "^3.7.1",
     "asn1.js": "^5.4.1",

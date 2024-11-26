@@ -11,10 +11,10 @@ const TableConfig = ({ children }) => {
       theme={{
         components: {
           Table: {
-            headerBg: Color.semiGray,
+            headerBg: Color.black13,
             headerBorderRadius: 0,
             headerColor: Color.yellow,
-            headerSplitColor: Color.semiGray,
+            headerSplitColor: Color.black13,
           },
         },
       }}

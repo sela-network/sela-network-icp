@@ -4,7 +4,7 @@ import { Space, Avatar } from 'antd';
 import Text from './Text';
 import Color from '../style/Color';
 
-const Header = ({ title, principalId }) => {
+const Header = ({ title, principalId, setProfileMenu }) => {
   return (
     <div
       style={{
@@ -20,6 +20,7 @@ const Header = ({ title, principalId }) => {
         <Text children={'' + principalId} size={14} />
 
         <Avatar
+          onClick={setProfileMenu}
           style={{
             backgroundColor: Color.semiGray,
           }}

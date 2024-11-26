@@ -7,3 +7,6 @@ export { default as Text } from './Text';
 export { default as Container } from './Container';
 export { default as Header } from './Header';
 export { TableConfig, useStyle } from './TableConfig';
+export { default as HeaderModal } from './HeaderModal';
+export { default as Column } from './Column';
+export { default as Row } from './Row';

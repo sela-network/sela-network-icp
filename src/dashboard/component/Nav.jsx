@@ -2,9 +2,7 @@ import React from 'react';
 import { Layout } from 'antd';
 const { Footer, Sider } = Layout;
 
-import SelaLogo from './SelaLogo';
-import AppMenu from './AppMenu';
-import Spacing from './Spacing';
+import { SelaLogo, AppMenu, Spacing } from './index';
 
 const Nav = ({ menuItems, onMenuClick, selectedMenu }) => {
   return (
@@ -22,6 +20,8 @@ const Nav = ({ menuItems, onMenuClick, selectedMenu }) => {
           />
         </div>
       ))}
+
+      <Spacing margin={32} />
     </Sider>
   );
 };
