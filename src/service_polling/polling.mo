@@ -881,7 +881,7 @@ actor polling {
     };
 
     // Set up the recurring timer to check for client timeouts
-    ignore Timer.recurringTimer<system>(#seconds(3600), hourlyJobCheck);
+    //ignore Timer.recurringTimer<system>(#seconds(3600), hourlyJobCheck);
 
     public query func http_request(request : HttpRequest) : async HttpResponse {
         return {

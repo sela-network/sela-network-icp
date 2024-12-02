@@ -11,6 +11,28 @@
         "node_compatibility": true
       }
     },
+    "webSocketCanister": {
+      "main": "src/webSocket/canister.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/webSocket",
+        "node_compatibility": true
+      }
+    },
+    "sock": {
+      "main": "src/webSocket/sock.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/sock",
+        "node_compatibility": true
+      }
+    },
     "service_polling": {
       "main": "src/service_polling/polling.mo",
       "type": "motoko",
