@@ -9,6 +9,9 @@ import Sock "canister:sock";
 import Canister "canister:webSocketCanister";
 import Result "mo:base/Result";
 import Debug "mo:base/Debug";
+import Types "mo:cbor/Types";
+import Decoder "mo:cbor/Decoder";
+import Iter "mo:base/Iter";
 
 actor {
     // Type definitions
@@ -75,11 +78,112 @@ actor {
     };
 
     // Open the websocket connection.
-    public func ws_open(msg : Blob, sig : Blob) : async Bool {
-        let decoded = switch (from_candid(msg) : ?FirstMessage) {
-            case (?value) { value };
-            case null { 
-                // Handle decoding error
+    public shared func ws_open(msg : Blob, sig : Blob) : async Bool {
+
+        Debug.print("msg: " # debug_show (msg));
+        Debug.print("sig: " # debug_show (sig));
+
+        let decoded : FirstMessage = switch (Decoder.decode(msg)) {
+            case (#ok(value)) {
+                switch (value) {
+                    case (#majorType6 { tag; value }) {
+                        // Handle tagged value
+                        switch (value) {
+                            case (#majorType5(fields)) {
+                                var clientId : ?Nat64 = null;
+                                var canisterId : ?Text = null;
+                                for ((key, val) in fields.vals()) {
+                                    switch (key) {
+                                        case (#majorType3("client_id")) {
+                                            switch (val) {
+                                                case (#majorType0(id)) {
+                                                    clientId := ?id;
+                                                };
+                                                case _ {
+                                                    Debug.print("Unexpected clientId type");
+                                                    return false;
+                                                };
+                                            };
+                                        };
+                                        case (#majorType3("canister_id")) {
+                                            switch (val) {
+                                                case (#majorType3(id)) {
+                                                    canisterId := ?id;
+                                                };
+                                                case _ {
+                                                    Debug.print("Unexpected canisterId type");
+                                                    return false;
+                                                };
+                                            };
+                                        };
+                                        case _ { /* Ignore other fields */ };
+                                    };
+                                };
+                                switch (clientId, canisterId) {
+                                    case (?cId, ?cName) {
+                                        { clientId = cId; canisterId = cName };
+                                    };
+                                    case _ {
+                                        Debug.print("Missing clientId or canisterId");
+                                        return false;
+                                    };
+                                };
+                            };
+                            case _ {
+                                Debug.print("Unexpected CBOR value type in tagged value");
+                                return false;
+                            };
+                        };
+                    };
+                    case (#majorType5(fields)) {
+                        // Keep existing case as fallback
+                        var clientId : ?Nat64 = null;
+                        var canisterId : ?Text = null;
+                        for ((key, val) in fields.vals()) {
+                            switch (key) {
+                                case (#majorType3("client_id")) {
+                                    switch (val) {
+                                        case (#majorType0(id)) {
+                                            clientId := ?id;
+                                        };
+                                        case _ {
+                                            Debug.print("Unexpected clientId type");
+                                            return false;
+                                        };
+                                    };
+                                };
+                                case (#majorType3("canister_id")) {
+                                    switch (val) {
+                                        case (#majorType3(id)) {
+                                            canisterId := ?id;
+                                        };
+                                        case _ {
+                                            Debug.print("Unexpected canisterId type");
+                                            return false;
+                                        };
+                                    };
+                                };
+                                case _ { /* Ignore other fields */ };
+                            };
+                        };
+                        switch (clientId, canisterId) {
+                            case (?cId, ?cName) {
+                                { clientId = cId; canisterId = cName };
+                            };
+                            case _ {
+                                Debug.print("Missing clientId or canisterId");
+                                return false;
+                            };
+                        };
+                    };
+                    case _ {
+                        Debug.print("Unexpected CBOR value type");
+                        return false;
+                    };
+                };
+            };
+            case (#err(e)) {
+                Debug.print("Error decoding CBOR: " # debug_show (e));
                 return false;
             };
         };
