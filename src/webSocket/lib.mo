@@ -173,11 +173,6 @@ actor {
 
     // Gateway polls this method to get messages for all the clients it serves.
     public func ws_get_messages(nonce : Nat64) : async CertMessages {
-        let result = await Sock.get_cert_messages(nonce);
-        {
-            messages = result.messages;
-            cert = Blob.fromArray(result.cert);
-            tree = Blob.fromArray(result.tree);
-        }
+        await Sock.get_cert_messages(nonce);
     };
 }
