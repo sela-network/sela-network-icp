@@ -8,6 +8,7 @@ import Ed25519 "mo:ed25519";
 import Sock "canister:sock";
 import Canister "canister:webSocketCanister";
 import Result "mo:base/Result";
+import Debug "mo:base/Debug";
 
 actor {
     // Type definitions
@@ -26,8 +27,8 @@ actor {
 
     public type CertMessages = {
         messages : [EncodedMessage];
-        cert : Blob;
-        tree : Blob;
+        cert : [Nat8];
+        tree : [Nat8];
     };
 
     // Type definition for FirstMessage
@@ -48,22 +49,7 @@ actor {
     };
 
     // Client submits its public key and gets a new client_id back.
-    public shared(msg) func ws_register(publicKey : Blob) : async Result.Result<Nat64, Text> {
-        // Validate the public key
-        if (publicKey.size() != 32) {
-            return #err("Invalid public key size. Expected 32 bytes.");
-        };
-
-        // // Verify that the public key is a valid Ed25519 key
-        // let validKey = await Crypto.ic_verify({
-        //     signature = Blob.fromArray([0,0,0,0,0,0,0,0]), // dummy signature
-        //     message = Blob.fromArray([0,0,0,0,0,0,0,0]), // dummy message
-        //     public_key = publicKey  // Remove the trailing comma here
-        // });
-
-        // if (not validKey) {
-        //     return #err("Invalid Ed25519 public key");
-        // };
+    public shared (msg) func ws_register(publicKey : Blob) : async Nat64 {
 
         let clientId = await Sock.next_client_id();
         
@@ -72,8 +58,8 @@ actor {
         
         // The identity (caller) used in this update call will be associated with this client_id. Remember this identity.
         await Sock.put_client_caller(clientId);
-        
-        #ok(clientId)
+
+        clientId;
     };
 
     // A method for the gateway to get the client's public key and verify the signature of the first websocket message.
