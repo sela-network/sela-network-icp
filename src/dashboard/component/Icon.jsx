@@ -5,6 +5,7 @@ import IconGift from './Icons/IconGift';
 import IconHistory from './Icons/IconHistory';
 import IconSela from './Icons/IconSela';
 import IconPhone from './Icons/IconPhone';
+import IconReferral from './Icons/IconReferral';
 
 import Color from '../style/Color';
 
@@ -14,6 +15,7 @@ const iconMap = {
   gift: IconGift,
   arrowRight: IconArrowRight,
   phone: IconPhone,
+  referral: IconReferral,
 };
 
 const Icon = ({

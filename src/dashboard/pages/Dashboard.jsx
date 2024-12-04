@@ -97,6 +97,84 @@ const Dashboard = ({ handleMoreClick }) => {
     );
   };
 
+  const ContainerReferral = () => {
+    return (
+      <Container>
+        <Text children="Refferal" weight="semiBold" size={14} />
+        <Row justifyContent="space-between">
+          <Text
+            children={`Refer your friends and than, get Sela Points when users sign up`}
+            size={14}
+            color={Color.gray}
+            style={{ flex: 2 }}
+          />
+          <Icon name="referral" style={{ width: 20, height: 20, flex: 1 }} />
+          <Column spacing={4} flex={1}>
+            <Text children="Refferals" size={14} color={Color.gray} />
+            <Text children="100,000" weight="semiBold" size={16} />
+          </Column>
+        </Row>
+        <Button
+          shape="round"
+          size={16}
+          style={{
+            backgroundColor: Color.yellow,
+            borderColor: Color.yellow,
+            height: 52,
+          }}
+        >
+          <Text
+            children="Share Referral"
+            size={16}
+            weight="semiBold"
+            color="#000"
+          />
+        </Button>
+        <Button
+          shape="round"
+          size={16}
+          style={{
+            backgroundColor: '#000',
+            borderColor: Color.yellow,
+            height: 52,
+          }}
+        >
+          <Text
+            children="Copy Referral Link"
+            size={16}
+            weight="semiBold"
+            color={Color.yellow}
+          />
+        </Button>
+      </Container>
+    );
+  };
+
+  const ContainerTier = () => {
+    return (
+      <Container alignItems="center">
+        <Text children="Your Tier: Tier 2" weight="semiBold" size={14} />
+        <Text
+          children="Points & Referrals Left to Tier 2: 145.04K Points, 135 Referrals"
+          size={14}
+          textAlign="center"
+        />
+        <Button
+          shape="round"
+          size={16}
+          style={{
+            backgroundColor: Color.yellow,
+            borderColor: Color.yellow,
+            width: 66,
+            height: 26,
+          }}
+        >
+          <Text children="More" size={14} weight="semiBold" color="#000" />
+        </Button>
+      </Container>
+    );
+  };
+
   return (
     <>
       <Row alignItems="start">
@@ -114,6 +192,8 @@ const Dashboard = ({ handleMoreClick }) => {
         </Column>
         <Column flex={2} backgroundColor="red">
           <ContainerStatus />
+          <ContainerReferral />
+          <ContainerTier />
         </Column>
       </Row>
     </>

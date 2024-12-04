@@ -5,6 +5,7 @@ const Text = ({
   color = '#fff', // Default color is white
   weight = 'normal', // Default weight is normal
   decoration = 'none', // Default decoration is none
+  textAlign = 'left', // Default text alignment is left
   children, // The text to display
   style = {}, // Additional custom styles
   onClick,
@@ -25,6 +26,7 @@ const Text = ({
         fontFamily: 'Urbanist',
         fontWeight: fontWeightMap[weight] || 'normal', // Use the weight map
         textDecoration: decoration,
+        textAlign: textAlign,
         ...style, // Allow overriding styles
       }}
     >
