@@ -33,6 +33,17 @@
         "node_compatibility": true
       }
     },
+    "lib": {
+      "main": "src/webSocket/lib.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/lib",
+        "node_compatibility": true
+      }
+    },
     "service_polling": {
       "main": "src/service_polling/polling.mo",
       "type": "motoko",
