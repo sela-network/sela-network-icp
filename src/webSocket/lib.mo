@@ -84,106 +84,34 @@ actor {
         Debug.print("sig: " # debug_show (sig));
 
         let decoded : FirstMessage = switch (Decoder.decode(msg)) {
-            case (#ok(value)) {
-                switch (value) {
-                    case (#majorType6 { tag; value }) {
-                        // Handle tagged value
-                        switch (value) {
-                            case (#majorType5(fields)) {
-                                var clientId : ?Nat64 = null;
-                                var canisterId : ?Text = null;
-                                for ((key, val) in fields.vals()) {
-                                    switch (key) {
-                                        case (#majorType3("client_id")) {
-                                            switch (val) {
-                                                case (#majorType0(id)) {
-                                                    clientId := ?id;
-                                                };
-                                                case _ {
-                                                    Debug.print("Unexpected clientId type");
-                                                    return false;
-                                                };
-                                            };
-                                        };
-                                        case (#majorType3("canister_id")) {
-                                            switch (val) {
-                                                case (#majorType3(id)) {
-                                                    canisterId := ?id;
-                                                };
-                                                case _ {
-                                                    Debug.print("Unexpected canisterId type");
-                                                    return false;
-                                                };
-                                            };
-                                        };
-                                        case _ { /* Ignore other fields */ };
-                                    };
-                                };
-                                switch (clientId, canisterId) {
-                                    case (?cId, ?cName) {
-                                        { clientId = cId; canisterId = cName };
-                                    };
-                                    case _ {
-                                        Debug.print("Missing clientId or canisterId");
-                                        return false;
-                                    };
-                                };
-                            };
-                            case _ {
-                                Debug.print("Unexpected CBOR value type in tagged value");
-                                return false;
-                            };
+            case (#ok(#majorType6 { value = #majorType5(fields) })) {
+                var clientId : ?Nat64 = null;
+                var canisterId : ?Text = null;
+
+                for ((key, val) in fields.vals()) {
+                    switch (key, val) {
+                        case (#majorType3("client_id"), #majorType0(id)) {
+                            clientId := ?id;
                         };
+                        case (#majorType3("canister_id"), #majorType3(id)) {
+                            canisterId := ?id;
+                        };
+                        case _ {};
                     };
-                    case (#majorType5(fields)) {
-                        // Keep existing case as fallback
-                        var clientId : ?Nat64 = null;
-                        var canisterId : ?Text = null;
-                        for ((key, val) in fields.vals()) {
-                            switch (key) {
-                                case (#majorType3("client_id")) {
-                                    switch (val) {
-                                        case (#majorType0(id)) {
-                                            clientId := ?id;
-                                        };
-                                        case _ {
-                                            Debug.print("Unexpected clientId type");
-                                            return false;
-                                        };
-                                    };
-                                };
-                                case (#majorType3("canister_id")) {
-                                    switch (val) {
-                                        case (#majorType3(id)) {
-                                            canisterId := ?id;
-                                        };
-                                        case _ {
-                                            Debug.print("Unexpected canisterId type");
-                                            return false;
-                                        };
-                                    };
-                                };
-                                case _ { /* Ignore other fields */ };
-                            };
-                        };
-                        switch (clientId, canisterId) {
-                            case (?cId, ?cName) {
-                                { clientId = cId; canisterId = cName };
-                            };
-                            case _ {
-                                Debug.print("Missing clientId or canisterId");
-                                return false;
-                            };
-                        };
+                };
+
+                switch (clientId, canisterId) {
+                    case (?cId, ?cName) {
+                        { clientId = cId; canisterId = cName };
                     };
                     case _ {
-                        Debug.print("Unexpected CBOR value type");
+                        Debug.print("Missing or invalid client_id/canister_id");
                         return false;
                     };
                 };
             };
-            case (#err(e)) {
-                Debug.print("Error decoding CBOR: " # debug_show (e));
+            case _ {
+                Debug.print("Invalid CBOR message format");
                 return false;
             };
         };
