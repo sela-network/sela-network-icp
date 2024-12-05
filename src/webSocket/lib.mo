@@ -1,17 +1,11 @@
-import Array "mo:base/Array";
 import Blob "mo:base/Blob";
 import Nat64 "mo:base/Nat64";
-import Principal "mo:base/Principal";
 import Text "mo:base/Text";
-import Crypto "ic:aaaaa-aa";
 import Ed25519 "mo:ed25519";
 import Sock "canister:sock";
 import Canister "canister:webSocketCanister";
-import Result "mo:base/Result";
 import Debug "mo:base/Debug";
-import Types "mo:cbor/Types";
 import Decoder "mo:cbor/Decoder";
-import Iter "mo:base/Iter";
 
 actor {
     // Type definitions
@@ -149,59 +143,109 @@ actor {
 
     // Gateway calls this method to pass on the message from the client to the canister.
     public func ws_message(msg : Blob) : async Bool {
-        let decoded = switch (from_candid(msg) : ?ClientMessage) {
-            case (?value) { value };
-            case null { 
-                // Handle decoding error
-                return false;
-            };
-        };
+        Debug.print("msg: " # debug_show (msg));
 
-        let content = switch (from_candid(decoded.val) : ?WebsocketMessage) {
-            case (?value) { value };
-            case null { 
-                // Handle decoding error
-                return false;
-            };
-        };
+        let decoded = switch (Decoder.decode(msg)) {
+            case (#ok(#majorType6 { value = #majorType5(fields) })) {
+                var val : ?Blob = null;
+                var sig : ?Blob = null;
 
-        let clientId = content.clientId;
-
-        // Verify the signature.
-        let clientKey = switch (await Sock.get_client_public_key(clientId)) {
-            case (?key) { key };
-            case null { 
-                // Handle error: client key not found
-                return false;
-            };
-        };
-
-        let publicKeyBytes = Blob.toArray(clientKey);
-        let signatureBytes = Blob.toArray(decoded.sig);
-        let messageBytes = Blob.toArray(decoded.val);
-
-        let valid = Ed25519.ED25519.verify(signatureBytes, messageBytes, publicKeyBytes);
-
-        if (valid) {
-            // Verify the message sequence number.
-            let clientIncomingNum = await Sock.get_client_incoming_num(clientId);
-            if (content.sequenceNum == clientIncomingNum) {
-                await Sock.put_client_incoming_num(clientId, content.sequenceNum + 1);
-                // Create a new object with the expected structure
-                let adjustedContent = {
-                    client_id = content.clientId;
-                    message = content.message;
+                for ((key, value) in fields.vals()) {
+                    switch (key, value) {
+                        case (#majorType3("val"), #majorType2(v)) { val := ?Blob.fromArray(v) };
+                        case (#majorType3("sig"), #majorType2(s)) { sig := ?Blob.fromArray(s) };
+                        case _ {};
+                    };
                 };
-                
-                await Canister.ws_on_message(adjustedContent);
-                true
-            } else {
-                false
-            }
+
+                switch (val, sig) {
+                    case (?v, ?s) { { val = v; sig = s } };
+                    case _ {
+                        Debug.print("Missing or invalid val/sig in ClientMessage");
+                        return false;
+                    };
+                };
+            };
+            case _ {
+                Debug.print("Invalid CBOR message format for ClientMessage");
+                return false;
+            };
+        };
+
+        let content = switch (Decoder.decode(decoded.val)) {
+            case (#ok(#majorType6 { value = #majorType5(fields) })) {
+            var clientId : ?Nat64 = null;
+            var sequenceNum : ?Nat64 = null;
+            var message : ?Text = null;
+
+            for ((key, value) in fields.vals()) {
+                switch (key, value) {
+                    case (#majorType3("clientId"), #majorType0(id)) { 
+                        clientId := ?id
+                    };
+                    case (#majorType3("sequenceNum"), #majorType0(num)) { 
+                        sequenceNum := ?num 
+                    };
+                    case (#majorType3("message"), #majorType3(msg)) { 
+                        message := ?msg 
+                    };
+                    case _ {};
+                };
+            };
+
+            switch (clientId, sequenceNum, message) {
+                case (?cId, ?sNum, ?msg) { { clientId = cId; sequenceNum = sNum; message = msg } };
+                case _ {
+                    Debug.print("Missing or invalid fields in WebsocketMessage");
+                    return false;
+                };
+            };
+        };
+        case _ {
+            Debug.print("Invalid CBOR message format for WebsocketMessage");
+            return false;
+        };
+    };
+
+    let clientId = content.clientId;
+
+    // Verify the signature.
+    let clientKey = switch (await Sock.get_client_public_key(clientId)) {
+        case (?key) { key };
+        case null { 
+            Debug.print("Client key not found");
+            return false;
+        };
+    };
+
+    let publicKeyBytes = Blob.toArray(clientKey);
+    let signatureBytes = Blob.toArray(decoded.sig);
+    let messageBytes = Blob.toArray(decoded.val);
+
+    let valid = Ed25519.ED25519.verify(signatureBytes, messageBytes, publicKeyBytes);
+
+    if (valid) {
+        // Verify the message sequence number.
+        let clientIncomingNum = await Sock.get_client_incoming_num(clientId);
+        if (content.sequenceNum == clientIncomingNum) {
+            await Sock.put_client_incoming_num(clientId, content.sequenceNum + 1);
+            // Create a new object with the expected structure
+            let adjustedContent = {
+                client_id = content.clientId;
+                message = Text.encodeUtf8(content.message);
+            };
+            
+            await Canister.ws_on_message(adjustedContent);
+            true
         } else {
+            Debug.print("Invalid sequence number");
             false
         }
-    };
+    } else {
+        Debug.print("Signature verification failed");
+        false
+    }
+};
 
     // Gateway polls this method to get messages for all the clients it serves.
     public func ws_get_messages(nonce : Nat64) : async CertMessages {

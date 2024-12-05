@@ -15,6 +15,9 @@ import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
 import Int "mo:base/Int";
 import SHA256 "mo:sha2/SHA256";
+import Encoder "mo:cbor/Encoder";
+import Types "mo:cbor/Types";
+import Debug "mo:base/Debug";
 
 actor {
     let LABEL_WEBSOCKET : [Nat8] = [119, 101, 98, 115, 111, 99, 107, 101, 116]; // "websocket" in ASCII
@@ -263,7 +266,21 @@ actor {
             message = msg;
         };
 
-        let data = to_candid(input);
+        // CBOR encoding
+       let cborValue : Types.Value = #majorType5([
+            (#majorType3("clientId"), #majorType0(clientId)),
+            (#majorType3("sequenceNum"), #majorType0(input.sequenceNum)),
+            (#majorType3("timestamp"), #majorType0(input.timestamp)),
+            (#majorType3("message"), #majorType2(Blob.toArray(input.message)))
+        ]);
+
+        let data = switch (Encoder.encode(cborValue)) {
+            case (#ok(bytes)) { Blob.fromArray(bytes) };
+            case (#err(e)) { 
+                Debug.print("Error encoding CBOR: " # debug_show(e));
+                return; // Exit the function if encoding fails
+            };
+        };
 
         await put_cert_for_message(key, data);
         
@@ -300,15 +317,23 @@ actor {
         let witness = createWitness(key);
         let tree = labeled(LABEL_WEBSOCKET, witness);
         
-        let treeBlob = to_candid(tree);
+        // CBOR encoding of the blob
+        let cborTree = encodeCBORBlob(tree);
         
+        let treeBlob = switch (Encoder.encode(cborTree)) {
+            case (#ok(bytes)) { Blob.fromArray(bytes) };
+            case (#err(e)) { 
+                Debug.print("Error encoding CBOR tree: " # debug_show(e));
+                Blob.fromArray([]); // Return an empty Blob in case of error
+            };
+        };
+
         switch (CertifiedData.getCertificate()) {
             case (?cert) {
                 (cert, treeBlob)
             };
             case null {
                 // Handle the case where no certificate is available
-                // You might want to return an empty Blob or handle this case differently
                 (Blob.fromArray([]), treeBlob)
             };
         }
@@ -318,7 +343,16 @@ actor {
         let witness = createRangeWitness(first, last);
         let tree = labeled(LABEL_WEBSOCKET, witness);
         
-        let treeBlob = to_candid(tree);
+        // CBOR encoding of the tree
+        let cborTree = encodeCBORBlob(tree);
+        
+        let treeBlob = switch (Encoder.encode(cborTree)) {
+            case (#ok(bytes)) { Blob.fromArray(bytes) };
+            case (#err(e)) { 
+                Debug.print("Error encoding CBOR tree: " # debug_show(e));
+                Blob.fromArray([]); // Return an empty Blob in case of error
+            };
+        };
         
         switch (CertifiedData.getCertificate()) {
             case (?cert) {
@@ -444,4 +478,17 @@ actor {
         let padText = Text.join("", Iter.map(Iter.range(0, padLen - 1), func(_ : Nat) : Text { Text.fromChar(pad) }));
         padText # text
     };
+
+    type Tree = {
+        #empty;
+        #pruned : [Nat8];
+        #fork : (Tree, Tree);
+        #labeled : (Text, Tree);
+        #leaf : [Nat8];
+    };
+
+    // Helper function to encode a Blob to CBOR
+    func encodeCBORBlob(blob : Blob) : Types.Value {
+        #majorType2(Blob.toArray(blob))
+    }
 }
