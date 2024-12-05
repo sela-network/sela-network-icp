@@ -58,11 +58,13 @@ pub async fn ws_get_client_key(
         .unwrap();
 
     let res = agent
-        .query(canister_id, "ws_get_client_key")
+        .update(canister_id, "ws_get_client_key")
         .with_arg(&args)
-        .call()
+        .call_and_wait()
         .await
         .unwrap();
+
+    println!(" ws_get_client_key res: {:?}", res);  
 
     PublicKey::from_slice(&Decode!(&res, Vec<u8>).map_err(|e| e.to_string()).unwrap()).unwrap()
 }
@@ -77,6 +79,8 @@ pub async fn ws_open(agent: &Agent, canister_id: &Principal, msg: Vec<u8>, sig: 
         .await
         .unwrap();
 
+    println!(" ws_open res: {:?}", res);
+
     Decode!(&res, bool).map_err(|e| e.to_string()).unwrap()
 }
 
@@ -90,6 +94,7 @@ pub async fn ws_close(agent: &Agent, canister_id: &Principal, can_client_id: u64
         .await
         .unwrap();
 
+    println!(" ws_close res: {:?}", res);
     Decode!(&res, ()).map_err(|e| e.to_string()).unwrap()
 }
 
@@ -103,6 +108,8 @@ pub async fn ws_message(agent: &Agent, canister_id: &Principal, mes: Vec<u8>) ->
         .await
         .unwrap();
 
+    println!(" ws_message res: {:?}", res);
+
     Decode!(&res, bool).map_err(|e| e.to_string()).unwrap()
 }
 
@@ -112,11 +119,13 @@ pub async fn ws_get_messages(agent: &Agent, canister_id: &Principal, nonce: u64)
         .unwrap();
 
     let res = agent
-        .query(canister_id, "ws_get_messages")
+        .update(canister_id, "ws_get_messages")
         .with_arg(&args)
-        .call()
+        .call_and_wait()
         .await
         .unwrap();
+
+    println!(" ws_get_messages res: {:?}", res);
 
     Decode!(&res, CertMessages)
         .map_err(|e| e.to_string())

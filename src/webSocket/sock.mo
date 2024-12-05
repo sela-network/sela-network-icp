@@ -16,6 +16,7 @@ import Nat "mo:base/Nat";
 import Int "mo:base/Int";
 import SHA256 "mo:sha2/SHA256";
 import Encoder "mo:cbor/Encoder";
+import Decoder "mo:cbor/Decoder";
 import Types "mo:cbor/Types";
 import Debug "mo:base/Debug";
 
@@ -40,14 +41,14 @@ actor {
     };
 
     type EncodedMessage = {
-        clientId : Nat64;
+        client_id : Nat64;
         key : Text;
         val : Blob;
     };
 
     type WebsocketMessage = {
-        clientId : Nat64;
-        sequenceNum : Nat64;
+        client_id : Nat64;
+        sequence_num : Nat64;
         timestamp : Nat64;
         message : Blob;
     };
@@ -79,8 +80,8 @@ actor {
     private var clientGatewayMap : TrieMap.TrieMap<Nat64, Text> = TrieMap.TrieMap<Nat64, Text>(Nat64.equal, hashNat64);
     private var clientMessageNumMap : TrieMap.TrieMap<Nat64, Nat64> = TrieMap.TrieMap<Nat64, Nat64>(Nat64.equal, hashNat64);
     private var clientIncomingNumMap : TrieMap.TrieMap<Nat64, Nat64> = TrieMap.TrieMap<Nat64, Nat64>(Nat64.equal, hashNat64);
-    private var GATEWAY_MESSAGES_MAP : TrieMap.TrieMap<Text, Buffer.Buffer<EncodedMessage>> = TrieMap.TrieMap<Text, Buffer.Buffer<EncodedMessage>>(Text.equal, Text.hash);
-    private var MESSAGE_DELETE_QUEUE : Buffer.Buffer<KeyGatewayTime> = Buffer.Buffer<KeyGatewayTime>(0);
+    private var GATEWAY_MESSAGES_MAP : TrieMap.TrieMap<Text, Blob> = TrieMap.TrieMap<Text, Blob>(Text.equal, Text.hash);
+    private var MESSAGE_DELETE_QUEUE : TrieMap.TrieMap<Text, KeyGatewayTime> = TrieMap.TrieMap<Text, KeyGatewayTime>(Text.equal, Text.hash);
 
     // Note: Certification in Motoko is handled differently, so we don't need an exact equivalent of CERT_TREE
 
@@ -92,8 +93,8 @@ actor {
         clientGatewayMap := TrieMap.TrieMap<Nat64, Text>(Nat64.equal, hashNat64);
         clientMessageNumMap := TrieMap.TrieMap<Nat64, Nat64>(Nat64.equal, hashNat64);
         clientIncomingNumMap := TrieMap.TrieMap<Nat64, Nat64>(Nat64.equal, hashNat64);
-        GATEWAY_MESSAGES_MAP := TrieMap.TrieMap<Text, Buffer.Buffer<EncodedMessage>>(Text.equal, Text.hash);
-        MESSAGE_DELETE_QUEUE := Buffer.Buffer<KeyGatewayTime>(0);
+        GATEWAY_MESSAGES_MAP := TrieMap.TrieMap<Text, Blob>(Text.equal, Text.hash);
+        MESSAGE_DELETE_QUEUE := TrieMap.TrieMap<Text, KeyGatewayTime>(Text.equal, Text.hash);
         // Reset certified data
         CertifiedData.set(Blob.fromArray([]));
     };
@@ -164,44 +165,59 @@ actor {
    public shared(msg) func get_cert_messages(nonce : Nat64) : async CertMessages {
         let gateway = Principal.toText(msg.caller);
         
-        let gatewayMessagesBuffer = switch (GATEWAY_MESSAGES_MAP.get(gateway)) {
-            case null {
-                let newBuffer = Buffer.Buffer<EncodedMessage>(0);
-                GATEWAY_MESSAGES_MAP.put(gateway, newBuffer);
-                newBuffer
+        // Get or create gateway messages
+        let gatewayMessages : [EncodedMessage] = switch (GATEWAY_MESSAGES_MAP.get(gateway)) {
+            case null { [] };
+            case (?messagesBlob) {
+                switch (Decoder.decode(messagesBlob)) {
+                    case (#ok(#majorType4(values))) {
+                        Array.mapFilter<Types.Value, EncodedMessage>(values, decodeEncodedMessage);
+                    };
+                    case _ { [] };
+                };
             };
-            case (?buffer) { buffer };
         };
 
         let smallestKey = gateway # "_" # padLeft(Nat64.toText(nonce), '0', 20);
         
-        // Use Buffer.partition to split the buffer
-        let (leftBuffer, rightBuffer) = Buffer.partition(gatewayMessagesBuffer, func (x : EncodedMessage) : Bool {
-            Text.compare(x.key, smallestKey) == #less
-        });
+        // Find start index
+        let startIndex = Array.foldLeft<EncodedMessage, Nat>(
+            gatewayMessages, 
+            0, 
+            func(acc, x) { if (x.key < smallestKey) { acc + 1 } else { acc } }
+        );
 
-        // Create a new buffer with the desired messages
-        let messages = Buffer.Buffer<EncodedMessage>(0);
-        let iterRight = rightBuffer.vals();
-        var count = 0;
+        // Calculate end index
+        let endIndex = Nat.min(
+            startIndex + MAX_NUMBER_OF_RETURNED_MESSAGES,
+            gatewayMessages.size()
+        );
 
-        label l loop {
-            switch (iterRight.next()) {
-                case (?message) {
-                    if (count >= MAX_NUMBER_OF_RETURNED_MESSAGES) { break l; };
-                    messages.add(message);
-                    count += 1;
-                };
-                case null { break l; };
-            };
-        };
-        
+        // Get messages slice
+        let messages : [EncodedMessage] = Array.subArray<EncodedMessage>(
+            gatewayMessages, 
+            startIndex, 
+            endIndex - startIndex
+        );
+
+        Debug.print("Messages to return: " # debug_show(messages));
+
+        // Return CertMessages structure
         if (messages.size() > 0) {
-            let firstKey = messages.get(0).key;
-            let lastKey = messages.get(messages.size() - 1).key;
+            let firstKey = messages[0].key;
+            let lastKey = messages[messages.size() - 1].key;
             let (cert, tree) = await get_cert_for_range(firstKey, lastKey);
             {
-                messages = Buffer.toArray(messages);
+                messages = Array.map<EncodedMessage, EncodedMessage>(
+                    messages,
+                    func(m) : EncodedMessage {
+                        {
+                            client_id = m.client_id;
+                            key = m.key;
+                            val = m.val;
+                        }
+                    }
+                );
                 cert = Blob.toArray(cert);
                 tree = Blob.toArray(tree);
             }
@@ -216,9 +232,30 @@ actor {
 
     private func delete_message(messageInfo : KeyGatewayTime) {
         switch (GATEWAY_MESSAGES_MAP.get(messageInfo.gateway)) {
-            case (?buffer) {
-                if (buffer.size() > 0) {
-                    let _ = buffer.remove(0);
+            case (?existingBlob) {
+                // Decode existing messages
+                let existingMessages = switch (Decoder.decode(existingBlob)) {
+                    case (#ok(#majorType4(values))) {
+                        Array.mapFilter<Types.Value, EncodedMessage>(values, decodeEncodedMessage);
+                    };
+                    case _ { [] };
+                };
+
+                // Remove the first message if there are any
+                if (existingMessages.size() > 0) {
+                    let updatedMessages = Array.subArray(existingMessages, 1, existingMessages.size() - 1);
+
+                    // Encode updated messages using the encodeCBORMessages helper function
+                    let cborValue = encodeCBORMessages(updatedMessages);
+
+                    switch (Encoder.encode(cborValue)) {
+                        case (#ok(bytes)) {
+                            GATEWAY_MESSAGES_MAP.put(messageInfo.gateway, Blob.fromArray(bytes));
+                        };
+                        case (#err(e)) {
+                            Debug.print("Error encoding CBOR: " # debug_show(e));
+                        };
+                    };
                 };
             };
             case null { /* Do nothing */ };
@@ -226,85 +263,102 @@ actor {
         CERT_TREE.delete(messageInfo.key);
     };
 
-    public func send_message_from_canister(clientId : Nat64, msg : Blob) : async () {
-        let gateway = switch (await get_client_gateway(clientId)) {
+    public func send_message_from_canister(client_id : Nat64, msg : Blob) : async () {
+        let gateway = switch (await get_client_gateway(client_id)) {
             case null { return };
             case (?gw) { gw };
         };
-
 
         let time = Time.now();
         nextMessageNonce += 1;
         let key = gateway # "_" # padLeft(Nat64.toText(nextMessageNonce), '0', 20);
 
-        MESSAGE_DELETE_QUEUE.add({
+        // Add to message delete queue and cleanup old messages
+        let queueItem : KeyGatewayTime = {
             key = key;
             gateway = gateway;
             time = Nat64.fromNat(Int.abs(time));
-        });
+        };
+        MESSAGE_DELETE_QUEUE.put(key, queueItem);
 
-        if (MESSAGE_DELETE_QUEUE.size() > 0) {
-            let front = MESSAGE_DELETE_QUEUE.get(0);
-            if (Nat64.fromNat(Int.abs(time)) - front.time > MSG_TIMEOUT) {
-                delete_message(front);
-                ignore MESSAGE_DELETE_QUEUE.remove(0);
-
-                if (MESSAGE_DELETE_QUEUE.size() > 0) {
-                    let newFront = MESSAGE_DELETE_QUEUE.get(0);
-                    if (Nat64.fromNat(Int.abs(time)) - newFront.time > MSG_TIMEOUT) {
-                        delete_message(newFront);
-                        ignore MESSAGE_DELETE_QUEUE.remove(0);
-                    };
-                };
+        // Check and cleanup old messages (similar to Rust's front check)
+        let currentTime = Nat64.fromNat(Int.abs(time));
+        for ((_, item) in MESSAGE_DELETE_QUEUE.entries()) {
+            if (currentTime - item.time > MSG_TIMEOUT) {
+                delete_message(item);
+                MESSAGE_DELETE_QUEUE.delete(item.key);
             };
         };
 
         let input : WebsocketMessage = {
-            clientId = clientId;
-            sequenceNum = await next_client_message_num(clientId);
+            client_id = client_id;
+            sequence_num = await next_client_message_num(client_id);
             timestamp = Nat64.fromNat(Int.abs(time));
             message = msg;
         };
 
-        // CBOR encoding
-       let cborValue : Types.Value = #majorType5([
-            (#majorType3("clientId"), #majorType0(clientId)),
-            (#majorType3("sequenceNum"), #majorType0(input.sequenceNum)),
-            (#majorType3("timestamp"), #majorType0(input.timestamp)),
-            (#majorType3("message"), #majorType2(Blob.toArray(input.message)))
-        ]);
-
+        let cborValue = encodeCBORWebsocketMessage(input);
         let data = switch (Encoder.encode(cborValue)) {
             case (#ok(bytes)) { Blob.fromArray(bytes) };
             case (#err(e)) { 
                 Debug.print("Error encoding CBOR: " # debug_show(e));
-                return; // Exit the function if encoding fails
+                return;
             };
         };
 
         await put_cert_for_message(key, data);
-        
+
+        // Update GATEWAY_MESSAGES_MAP
         switch (GATEWAY_MESSAGES_MAP.get(gateway)) {
             case null {
-                let newBuffer = Buffer.Buffer<EncodedMessage>(1);
-                newBuffer.add({
-                    clientId = clientId;
+                let messages = [{
+                    client_id = client_id;
                     key = key;
                     val = data;
-                });
-                GATEWAY_MESSAGES_MAP.put(gateway, newBuffer);
+                }];
+                let cborValue = encodeCBORMessages(messages);
+                switch (Encoder.encode(cborValue)) {
+                    case (#ok(bytes)) {
+                        GATEWAY_MESSAGES_MAP.put(gateway, Blob.fromArray(bytes));
+                    };
+                    case (#err(e)) {
+                        Debug.print("Error encoding CBOR: " # debug_show(e));
+                        return;
+                    };
+                };
             };
-            case (?buffer) {
-                buffer.add({
-                    clientId = clientId;
+            case (?existingBlob) {
+                let existingMessages = switch (Decoder.decode(existingBlob)) {
+                    case (#ok(#majorType4(values))) {
+                        Array.mapFilter<Types.Value, EncodedMessage>(values, decodeEncodedMessage);
+                    };
+                    case _ { [] };
+                };
+                
+                let updatedMessages = Array.append(existingMessages, [{
+                    client_id = client_id;
                     key = key;
                     val = data;
-                });
+                }]);
+                
+                let cborValue = encodeCBORMessages(updatedMessages);
+                switch (Encoder.encode(cborValue)) {
+                    case (#ok(bytes)) {
+                        GATEWAY_MESSAGES_MAP.put(gateway, Blob.fromArray(bytes));
+                    };
+                    case (#err(e)) {
+                        Debug.print("Error encoding CBOR: " # debug_show(e));
+                        return;
+                    };
+                };
             };
         };
     };
 
     public func put_cert_for_message(key : Text, value : Blob) : async () {
+        Debug.print("put_cert_for_message");
+        Debug.print("key: " # key);
+        Debug.print("value: " # debug_show (value));
         let hash = SHA256.fromBlob(#sha256, value);
         
         CERT_TREE.put(key, hash);
@@ -468,7 +522,6 @@ actor {
         Blob.toArray(SHA256.fromBlob(#sha256, Text.encodeUtf8(text)))
     };
 
-    // Add this helper function at the top of your actor or in a separate module
     private func padLeft(text : Text, pad : Char, len : Nat) : Text {
         let textLen = Text.size(text);
         if (textLen >= len) {
@@ -490,5 +543,129 @@ actor {
     // Helper function to encode a Blob to CBOR
     func encodeCBORBlob(blob : Blob) : Types.Value {
         #majorType2(Blob.toArray(blob))
-    }
+    };
+
+    // Helper function to decode a single EncodedMessage from CBOR
+    func decodeEncodedMessage(value : Types.Value) : ?EncodedMessage {
+        switch (value) {
+            case (#majorType5(fields)) {
+                var client_id : ?Nat64 = null;
+                var key : ?Text = null;
+                var val : ?Blob = null;
+
+                for ((k, v) in fields.vals()) {
+                    switch (k, v) {
+                        case (#majorType3("client_id"), #majorType0(id)) { 
+                            // Convert from Nat to Nat64 during decoding
+                            client_id := ?id;
+                        };
+                        case (#majorType3("key"), #majorType3(k)) { 
+                            key := ?k 
+                        };
+                        case (#majorType3("val"), #majorType2(v)) { 
+                            val := ?Blob.fromArray(v) 
+                        };
+                        case _ {};
+                    };
+                };
+
+                switch (client_id, key, val) {
+                    case (?cId, ?k, ?v) { 
+                        ?{ 
+                            client_id = cId;  // Now cId is already Nat64
+                            key = k; 
+                            val = v 
+                        } 
+                    };
+                    case _ { null };
+                };
+            };
+            case _ { null };
+        };
+    };
+    // Helper function to encode EncodedMessage array to CBOR
+    func encodeCBORMessages(messages : [EncodedMessage]) : Types.Value {
+        #majorType4(Array.map(messages, func (m : EncodedMessage) : Types.Value {
+            #majorType5([
+                (#majorType3("client_id"), #majorType0(m.client_id)),  // Remove Nat64.toNat conversion
+                (#majorType3("key"), #majorType3(m.key)),
+                (#majorType3("val"), #majorType2(Blob.toArray(m.val)))
+            ])
+        }))
+    };
+
+    private func encodeCBORWebsocketMessage(msg : WebsocketMessage) : Types.Value {
+        #majorType5([
+            (#majorType3("client_id"), #majorType0(msg.client_id)),  // Use msg.clientId directly
+            (#majorType3("sequence_num"), #majorType0(msg.sequence_num)),  // Use msg.sequence_num directly
+            (#majorType3("timestamp"), #majorType0(msg.timestamp)),  // Use msg.timestamp directly
+            (#majorType3("message"), #majorType2(Blob.toArray(msg.message)))
+        ])
+    };
+
+    private func encodeKeyGatewayTime(kgt : KeyGatewayTime) : Types.Value {
+        #majorType5([
+            (#majorType3("key"), #majorType3(kgt.key)),
+            (#majorType3("gateway"), #majorType3(kgt.gateway)),
+            (#majorType3("time"), #majorType0(kgt.time))
+        ])
+    };
+
+    private func decodeKeyGatewayTime(value : Types.Value) : ?KeyGatewayTime {
+        switch (value) {
+            case (#majorType5(fields)) {
+                var key : ?Text = null;
+                var gateway : ?Text = null;
+                var time : ?Nat64 = null;
+
+                for ((k, v) in fields.vals()) {
+                    switch (k, v) {
+                        case (#majorType3("key"), #majorType3(k)) { key := ?k };
+                        case (#majorType3("gateway"), #majorType3(g)) { gateway := ?g };
+                        case (#majorType3("time"), #majorType0(t)) { time := ?t };
+                        case _ {};
+                    };
+                };
+
+                switch (key, gateway, time) {
+                    case (?k, ?g, ?t) {
+                        ?{
+                            key = k;
+                            gateway = g;
+                            time = t;
+                        }
+                    };
+                    case _ { null };
+                };
+            };
+            case _ { null };
+        };
+    };
+
+    // Add helper function to get queue size
+    public func get_delete_queue_size() : async Nat {
+        Iter.size(MESSAGE_DELETE_QUEUE.entries())
+    };
+
+    // Add helper function to get queue items
+    public func get_delete_queue_items() : async [KeyGatewayTime] {
+        Iter.toArray(Iter.map(MESSAGE_DELETE_QUEUE.entries(), func (entry : (Text, KeyGatewayTime)) : KeyGatewayTime { entry.1 }))
+    };
+
+    // Helper function to encode CertMessages to CBOR
+    func encodeCertMessages(certMessages : CertMessages) : Blob {
+        let cborValue : Types.Value = #majorType5([
+            (#majorType3("messages"), encodeCBORMessages(certMessages.messages)),
+            (#majorType3("cert"), #majorType2(certMessages.cert)),
+            (#majorType3("tree"), #majorType2(certMessages.tree))
+        ]);
+
+        switch (Encoder.encode(cborValue)) {
+            case (#ok(bytes)) { Blob.fromArray(bytes) };
+            case (#err(e)) {
+                Debug.print("Error encoding CBOR: " # debug_show(e));
+                Blob.fromArray([]) // Return an empty Blob in case of error
+            };
+        };
+    };
 }

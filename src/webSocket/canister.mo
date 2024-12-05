@@ -76,6 +76,10 @@ actor {
             };
         };
 
+        Debug.print("client_id: " # debug_show(client_id));
+        Debug.print("msg: " # debug_show(msg));
+        Debug.print("msg_cbor: " # debug_show(msg_cbor));
+
         await WebSocket.send_message_from_canister(client_id, msg_cbor);
     };
 }

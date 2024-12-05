@@ -6,18 +6,20 @@ import Sock "canister:sock";
 import Canister "canister:webSocketCanister";
 import Debug "mo:base/Debug";
 import Decoder "mo:cbor/Decoder";
+import Array "mo:base/Array";
+import Types "mo:cbor/Types";
 
 actor {
     // Type definitions
     public type WebsocketMessage = {
-        clientId : Nat64;
-        sequenceNum : Nat64;
+        client_id : Nat64;
+        sequence_num : Nat64;
         timestamp : Nat64;
         message : Blob;
     };
 
     public type EncodedMessage = {
-        clientId : Nat64;
+        client_id : Nat64;
         key : Text;
         val : Blob;
     };
@@ -30,8 +32,8 @@ actor {
 
     // Type definition for FirstMessage
     public type FirstMessage = {
-        clientId : Nat64;
-        canisterId : Text;
+        client_id : Nat64;
+        canister_id : Text;
     };
 
     // Type definition for ClientMessage
@@ -46,7 +48,7 @@ actor {
     };
 
     // Client submits its public key and gets a new client_id back.
-    public shared (msg) func ws_register(publicKey : Blob) : async Nat64 {
+    public shared func ws_register(publicKey : Blob) : async Nat64 {
 
         let clientId = await Sock.next_client_id();
         
@@ -79,24 +81,24 @@ actor {
 
         let decoded : FirstMessage = switch (Decoder.decode(msg)) {
             case (#ok(#majorType6 { value = #majorType5(fields) })) {
-                var clientId : ?Nat64 = null;
-                var canisterId : ?Text = null;
+                var client_id : ?Nat64 = null;
+                var canister_id : ?Text = null;
 
                 for ((key, val) in fields.vals()) {
                     switch (key, val) {
                         case (#majorType3("client_id"), #majorType0(id)) {
-                            clientId := ?id;
+                            client_id := ?id;
                         };
                         case (#majorType3("canister_id"), #majorType3(id)) {
-                            canisterId := ?id;
+                            canister_id := ?id;
                         };
                         case _ {};
                     };
                 };
 
-                switch (clientId, canisterId) {
+                switch (client_id, canister_id) {
                     case (?cId, ?cName) {
-                        { clientId = cId; canisterId = cName };
+                        { client_id = cId; canister_id = cName };
                     };
                     case _ {
                         Debug.print("Missing or invalid client_id/canister_id");
@@ -110,8 +112,8 @@ actor {
             };
         };
 
-        let clientId = decoded.clientId;
-        let clientKey = switch (await Sock.get_client_public_key(clientId)) {
+        let client_id = decoded.client_id;
+        let clientKey = switch (await Sock.get_client_public_key(client_id)) {
             case (?key) { key };
             case null { 
                 // Handle error: client key not found
@@ -127,9 +129,9 @@ actor {
 
         if (valid) {
             // Remember this gateway will get the messages for this client_id.
-            await Sock.put_client_gateway(clientId);
+            await Sock.put_client_gateway(client_id);
 
-            await Canister.ws_on_open(clientId);
+            await Canister.ws_on_open(client_id);
             true
         } else {
             false
@@ -145,7 +147,7 @@ actor {
     public func ws_message(msg : Blob) : async Bool {
         Debug.print("msg: " # debug_show (msg));
 
-        let decoded = switch (Decoder.decode(msg)) {
+        let decoded : ClientMessage = switch (Decoder.decode(msg)) {
             case (#ok(#majorType6 { value = #majorType5(fields) })) {
                 var val : ?Blob = null;
                 var sig : ?Blob = null;
@@ -172,29 +174,40 @@ actor {
             };
         };
 
-        let content = switch (Decoder.decode(decoded.val)) {
+        let content: WebsocketMessage = switch (Decoder.decode(decoded.val)) {
             case (#ok(#majorType6 { value = #majorType5(fields) })) {
-            var clientId : ?Nat64 = null;
-            var sequenceNum : ?Nat64 = null;
-            var message : ?Text = null;
+            var client_id : ?Nat64 = null;
+            var sequence_num : ?Nat64 = null;
+            var timestamp : ?Nat64 = null;
+            var message : ?Blob = null;
 
             for ((key, value) in fields.vals()) {
                 switch (key, value) {
-                    case (#majorType3("clientId"), #majorType0(id)) { 
-                        clientId := ?id
+                    case (#majorType3("client_id"), #majorType0(id)) { 
+                        client_id := ?id
                     };
-                    case (#majorType3("sequenceNum"), #majorType0(num)) { 
-                        sequenceNum := ?num 
+                    case (#majorType3("sequence_num"), #majorType0(num)) { 
+                        sequence_num := ?num 
                     };
-                    case (#majorType3("message"), #majorType3(msg)) { 
-                        message := ?msg 
+                    case (#majorType3("timestamp"), #majorType0(ts)) { 
+                        timestamp := ?ts 
                     };
+                   case (#majorType3("message"), #majorType2(msg)) { 
+                    message := ?Blob.fromArray(msg) 
+                };
                     case _ {};
                 };
             };
 
-            switch (clientId, sequenceNum, message) {
-                case (?cId, ?sNum, ?msg) { { clientId = cId; sequenceNum = sNum; message = msg } };
+            switch (client_id, sequence_num, timestamp, message) {
+                case (?cId, ?sNum, ?ts, ?msg) { 
+                    { 
+                        client_id = cId; 
+                        sequence_num = sNum; 
+                        timestamp = ts;
+                        message = msg 
+                    } 
+                };
                 case _ {
                     Debug.print("Missing or invalid fields in WebsocketMessage");
                     return false;
@@ -207,7 +220,7 @@ actor {
         };
     };
 
-    let clientId = content.clientId;
+    let clientId = content.client_id;
 
     // Verify the signature.
     let clientKey = switch (await Sock.get_client_public_key(clientId)) {
@@ -227,12 +240,12 @@ actor {
     if (valid) {
         // Verify the message sequence number.
         let clientIncomingNum = await Sock.get_client_incoming_num(clientId);
-        if (content.sequenceNum == clientIncomingNum) {
-            await Sock.put_client_incoming_num(clientId, content.sequenceNum + 1);
+        if (content.sequence_num == clientIncomingNum) {
+            await Sock.put_client_incoming_num(clientId, content.sequence_num + 1);
             // Create a new object with the expected structure
             let adjustedContent = {
-                client_id = content.clientId;
-                message = Text.encodeUtf8(content.message);
+                client_id = content.client_id;
+                message = content.message;
             };
             
             await Canister.ws_on_message(adjustedContent);
@@ -249,6 +262,9 @@ actor {
 
     // Gateway polls this method to get messages for all the clients it serves.
     public func ws_get_messages(nonce : Nat64) : async CertMessages {
-        await Sock.get_cert_messages(nonce);
+        Debug.print("ws_get_messages called with nonce: " # debug_show(nonce));
+        let response = await Sock.get_cert_messages(nonce);
+        Debug.print("Response from Sock: " # debug_show(response));
+        response
     };
 }
