@@ -6,8 +6,6 @@ import Sock "canister:sock";
 import Canister "canister:webSocketCanister";
 import Debug "mo:base/Debug";
 import Decoder "mo:cbor/Decoder";
-import Array "mo:base/Array";
-import Types "mo:cbor/Types";
 
 actor {
     // Type definitions

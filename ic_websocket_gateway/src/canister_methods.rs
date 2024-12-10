@@ -7,6 +7,7 @@ use ic_agent::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use crate::session_store::RedisSessionStore;
 
 #[derive(CandidType, Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[candid_path("ic_cdk::export::candid")]
@@ -130,4 +131,15 @@ pub async fn ws_get_messages(agent: &Agent, canister_id: &Principal, nonce: u64)
     Decode!(&res, CertMessages)
         .map_err(|e| e.to_string())
         .unwrap()
+}
+
+pub async fn validate_session(
+    store: &RedisSessionStore,
+    client_id: u64,
+    canister_id: &str
+) -> bool {
+    match store.get_session(client_id).await {
+        Ok(Some(session)) => session.canister_id == canister_id,
+        _ => false
+    }
 }

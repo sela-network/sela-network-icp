@@ -13,6 +13,9 @@ use std::{
 };
 
 mod canister_methods;
+mod session_store;
+use session_store::{RedisSessionStore, SessionData};
+use std::env;
 
 type SessionID = u64;
 type Session = ezsockets::Session<SessionID, ()>;
@@ -52,6 +55,7 @@ struct GatewaySession {
     canister_connected: bool,
     client_id: Option<u64>,
     canister_id: Option<Principal>,
+    session_store: RedisSessionStore,
 }
 
 #[async_trait]
@@ -85,6 +89,23 @@ impl ezsockets::SessionExt for GatewaySession {
                     self.canister_connected = true;
                     self.client_id = Some(content.client_id);
                     self.canister_id = Some(canister_id);
+
+                    // Store session in Redis
+                    let session_data = SessionData {
+                        client_id: content.client_id,
+                        canister_id: content.canister_id.clone(),
+                        timestamp: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs(),
+                    };
+
+                    if let Err(e) = self.session_store.save_session(
+                        content.client_id, 
+                        &session_data
+                    ).await {
+                        eprintln!("Failed to save session: {}", e);
+                    }
 
                     self.server_handle.call(ConnectCanister {
                         session_id: self.id,
@@ -164,17 +185,19 @@ impl CanisterPoller {
                         );
 
                         let map = can_map.lock().unwrap();
-                        let s = map.get(&client_id).unwrap();
+                        if let Some(s) = map.get(&client_id) {
+                            let m = CertMessage {
+                                key: encoded_message.key.clone(),
+                                val: encoded_message.val,
+                                cert: msgs.cert.clone(),
+                                tree: msgs.tree.clone(),
+                            };
 
-                        let m = CertMessage {
-                            key: encoded_message.key.clone(),
-                            val: encoded_message.val,
-                            cert: msgs.cert.clone(),
-                            tree: msgs.tree.clone(),
-                        };
-
-                        if s.alive() {
-                            s.binary(to_vec(&m).unwrap());
+                            if s.alive() {
+                                s.binary(to_vec(&m).unwrap());
+                            }
+                        } else {
+                            println!("No session found for client {}", client_id);
                         }
 
                         nonce = encoded_message
@@ -184,7 +207,7 @@ impl CanisterPoller {
                             .unwrap()
                             .parse()
                             .unwrap();
-                        nonce += 1
+                        nonce += 1;
                     }
 
                     tokio::time::sleep(interval).await;
@@ -208,6 +231,7 @@ struct GatewayServer {
     identity: Arc<BasicIdentity>,
     close_args: HashMap<SessionID, ClientCanisterId>,
     agent: Agent,
+    session_store: RedisSessionStore,
 }
 
 #[async_trait]
@@ -232,10 +256,10 @@ impl ezsockets::ServerExt for GatewayServer {
                 handle,
                 server_handle: self.handle.clone(),
                 agent,
-
                 canister_connected: false,
                 client_id: None,
                 canister_id: None,
+                session_store: self.session_store.clone(),
             },
             id,
             socket,
@@ -248,10 +272,16 @@ impl ezsockets::ServerExt for GatewayServer {
         &mut self,
         id: <Self::Session as ezsockets::SessionExt>::ID,
     ) -> Result<(), Error> {
-        let close_args = self.close_args.remove(&id).unwrap();
-        println!("Websocket with client #{} closed.", close_args.client_id);
-        let canister_id = Principal::from_text(&close_args.canister_id).unwrap();
-        canister_methods::ws_close(&self.agent, &canister_id, close_args.client_id).await;
+        if let Some(close_args) = self.close_args.remove(&id) {
+            // Remove session from Redis
+            if let Err(e) = self.session_store.remove_session(close_args.client_id).await {
+                eprintln!("Failed to remove session: {}", e);
+            }
+            
+            println!("Websocket with client #{} closed.", close_args.client_id);
+            let canister_id = Principal::from_text(&close_args.canister_id).unwrap();
+            canister_methods::ws_close(&self.agent, &canister_id, close_args.client_id).await;
+        }
         Ok(())
     }
 
@@ -302,6 +332,13 @@ async fn main() {
     let agent = canister_methods::get_new_agent(URL, identity.clone(), FETCH_KEY).await;
     agent.fetch_root_key().await.unwrap();
 
+    // Get Redis URL from env or use default
+    let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    
+    // Initialize Redis session store
+    let session_store = RedisSessionStore::new(&redis_url)
+        .expect("Failed to connect to Redis");
+
     let (server, _) = Server::create(|handle| GatewayServer {
         next_session_id: 0,
         handle,
@@ -309,6 +346,7 @@ async fn main() {
         identity,
         close_args: HashMap::new(),
         agent,
+        session_store,
     });
     ezsockets::tungstenite::run(server, "127.0.0.1:8080", |_| async move { Ok(()) })
         .await
