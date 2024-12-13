@@ -74,15 +74,20 @@ impl ezsockets::SessionExt for GatewaySession {
 
     async fn binary(&mut self, bytes: Vec<u8>) -> Result<(), Error> {
         if !self.canister_connected {
+            println!("First message from client.");
             let m: FirstMessageFromClient = from_slice(&bytes).unwrap();
             let content: ClientCanisterId = from_slice(&m.client_canister_id).unwrap();
             let canister_id = Principal::from_text(&content.canister_id).unwrap();
+
+            println!("Canister ID: {}", canister_id);
 
             let client_key =
                 canister_methods::ws_get_client_key(&self.agent, &canister_id, content.client_id)
                     .await;
             let sig = Signature::from_slice(&m.sig).unwrap();
             let valid = client_key.verify(&m.client_canister_id, &sig);
+
+            println!("Valid: {:?}", valid);
 
             match valid {
                 Ok(_) => {
@@ -113,20 +118,40 @@ impl ezsockets::SessionExt for GatewaySession {
                         canister_id: content.canister_id,
                         canister_client_id: content.client_id,
                     });
-                    let ret = canister_methods::ws_open(
+
+                    let response = canister_methods::ws_open(
                         &self.agent,
                         &canister_id,
                         m.client_canister_id,
                         m.sig,
-                    )
-                    .await;
-                    println!("ws_open:{}", ret);
+                    ).await;
+                    println!("ws_open response when open() called: {}", response);
+                    self.handle.text(response);
                 }
-                Err(_) => println!("Client's signature does not verify."),
+                Err(_) => {
+                    println!("Client's signature does not verify.");
+                    self.handle.text("{\"status\": \"error\", \"message\": \"Invalid signature\"}".to_string());
+                }
             }
         } else {
-            println!("Message from client #{}", self.client_id.unwrap());
-            canister_methods::ws_message(&self.agent, &self.canister_id.unwrap(), bytes).await;
+            println!(
+                "Message from client #{}",
+                self.client_id.unwrap()
+            );
+            match canister_methods::ws_message(
+                &self.agent,
+                &self.canister_id.unwrap(),
+                bytes,
+            ).await {
+                Ok(response) => {
+                    println!("ws_message response: {}", response);
+                    self.handle.text(response);
+                }
+                Err(e) => {
+                    eprintln!("Error sending message: {}", e);
+                    self.handle.text(format!("{{\"status\": \"error\", \"message\": \"{}\"}}", e));
+                }
+            }
         }
         Ok(())
     }
@@ -167,7 +192,13 @@ impl CanisterPoller {
     async fn run_polling(&self) {
         println!("Start of polling.");
         let can_map = Arc::clone(&self.canister_client_session_map);
-        let agent = canister_methods::get_new_agent(URL, self.identity.clone(), FETCH_KEY).await;
+        let agent = match canister_methods::get_new_agent(URL, self.identity.clone(), FETCH_KEY).await {
+            Ok(a) => a,
+            Err(e) => {
+                eprintln!("Failed to create agent: {}", e);
+                return;
+            }
+        };
         let canister_id = Principal::from_text(&self.canister_id).unwrap();
         tokio::spawn({
             let interval = Duration::from_millis(200);
@@ -248,7 +279,10 @@ impl ezsockets::ServerExt for GatewayServer {
         let id = self.next_session_id;
         self.next_session_id += 1;
         println!("Client connected.");
-        let agent = canister_methods::get_new_agent(URL, self.identity.clone(), FETCH_KEY).await;
+        let agent = canister_methods::get_new_agent(URL, self.identity.clone(), FETCH_KEY)
+            .await
+            .expect("Failed to create agent");
+        println!("Agent created.");
 
         let session = Session::create(
             |handle| GatewaySession {
@@ -264,6 +298,9 @@ impl ezsockets::ServerExt for GatewayServer {
             id,
             socket,
         );
+        println!("Session created.");
+        println!("Session ID: {}", id);
+        println!("Session: {:?}", session);
 
         Ok(session)
     }
@@ -329,8 +366,22 @@ async fn main() {
             .expect("Could not read the key pair."),
     );
     let identity = Arc::new(identity);
-    let agent = canister_methods::get_new_agent(URL, identity.clone(), FETCH_KEY).await;
-    agent.fetch_root_key().await.unwrap();
+    let agent = match canister_methods::get_new_agent(URL, identity.clone(), FETCH_KEY).await {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("Failed to create agent: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Make sure dfx is running
+    match agent.fetch_root_key().await {
+        Ok(_) => println!("Connected to IC replica"),
+        Err(e) => {
+            eprintln!("Failed to connect to IC replica: {}. Make sure dfx is running.", e);
+            std::process::exit(1);
+        }
+    };
 
     // Get Redis URL from env or use default
     let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());

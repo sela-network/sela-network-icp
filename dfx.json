@@ -44,14 +44,14 @@
         "node_compatibility": true
       }
     },
-    "service_polling": {
-      "main": "src/service_polling/polling.mo",
+    "db": {
+      "main": "src/db/db.mo",
       "type": "motoko",
       "http": {
         "port": 4943
       },
       "declarations": {
-        "output": "src/declarations/service_polling",
+        "output": "src/declarations/db",
         "node_compatibility": true
       }
     },

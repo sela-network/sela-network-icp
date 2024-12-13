@@ -1,5 +1,5 @@
+use candid::{Decode, Encode};
 use candid::CandidType;
-use candid::Decode;
 use ed25519_compact::PublicKey;
 use ic_agent::{
     agent::http_transport::ReqwestHttpReplicaV2Transport, export::Principal,
@@ -36,17 +36,23 @@ pub struct CertMessages {
     pub tree: Vec<u8>,
 }
 
-pub async fn get_new_agent(url: &str, identity: Arc<BasicIdentity>, fetch_key: bool) -> Agent {
-    let transport = ReqwestHttpReplicaV2Transport::create(url.to_string()).unwrap();
+pub async fn get_new_agent(url: &str, identity: Arc<BasicIdentity>, fetch_key: bool) -> Result<Agent, String> {
+    let transport = ReqwestHttpReplicaV2Transport::create(url.to_string())
+        .map_err(|e| format!("Failed to create transport: {}", e))?;
+    
     let agent = Agent::builder()
         .with_transport(transport)
         .with_arc_identity(identity)
         .build()
-        .unwrap();
+        .map_err(|e| format!("Failed to build agent: {}", e))?;
+
     if fetch_key {
-        agent.fetch_root_key().await.unwrap();
+        agent.fetch_root_key()
+            .await
+            .map_err(|e| format!("Failed to fetch root key: {}", e))?;
     }
-    agent
+    
+    Ok(agent)
 }
 
 pub async fn ws_get_client_key(
@@ -70,19 +76,20 @@ pub async fn ws_get_client_key(
     PublicKey::from_slice(&Decode!(&res, Vec<u8>).map_err(|e| e.to_string()).unwrap()).unwrap()
 }
 
-pub async fn ws_open(agent: &Agent, canister_id: &Principal, msg: Vec<u8>, sig: Vec<u8>) -> bool {
+pub async fn ws_open(agent: &Agent, canister_id: &Principal, msg: Vec<u8>, sig: Vec<u8>) -> String {
     let args = candid::encode_args((msg, sig)).unwrap();
-
-    let res = agent
+    let response = agent
         .update(canister_id, "ws_open")
         .with_arg(args)
         .call_and_wait()
         .await
-        .unwrap();
+        .expect("Failed to call ws_open");
 
-    println!(" ws_open res: {:?}", res);
+    println!(" ws_open res: {:?}", response);
 
-    Decode!(&res, bool).map_err(|e| e.to_string()).unwrap()
+    // Convert response to String
+    String::from_utf8(response)
+        .unwrap_or_else(|_| String::from("{\"status\": \"error\", \"message\": \"Invalid UTF-8 response\"}"))
 }
 
 pub async fn ws_close(agent: &Agent, canister_id: &Principal, can_client_id: u64) {
@@ -99,19 +106,17 @@ pub async fn ws_close(agent: &Agent, canister_id: &Principal, can_client_id: u64
     Decode!(&res, ()).map_err(|e| e.to_string()).unwrap()
 }
 
-pub async fn ws_message(agent: &Agent, canister_id: &Principal, mes: Vec<u8>) -> bool {
+pub async fn ws_message(agent: &Agent, canister_id: &Principal, mes: Vec<u8>) -> Result<String, String> {
     let args = candid::encode_args((mes,)).unwrap();
-
-    let res = agent
+    let response = agent
         .update(canister_id, "ws_message")
         .with_arg(args)
         .call_and_wait()
         .await
-        .unwrap();
-
-    println!(" ws_message res: {:?}", res);
-
-    Decode!(&res, bool).map_err(|e| e.to_string()).unwrap()
+        .expect("Failed to call ws_message");
+    // Convert response to String
+    Ok(String::from_utf8(response)
+        .unwrap_or_else(|_| String::from("{\"status\": \"error\", \"message\": \"Invalid UTF-8 response\"}")))
 }
 
 pub async fn ws_get_messages(agent: &Agent, canister_id: &Principal, nonce: u64) -> CertMessages {

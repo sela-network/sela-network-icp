@@ -9,7 +9,6 @@ import Text "mo:base/Text";
 import Buffer "mo:base/Buffer";
 import CertifiedData "mo:base/CertifiedData";
 import Hash "mo:base/Hash";
-import Option "mo:base/Option";
 import Array "mo:base/Array";
 import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
@@ -19,8 +18,14 @@ import Encoder "mo:cbor/Encoder";
 import Decoder "mo:cbor/Decoder";
 import Types "mo:cbor/Types";
 import Debug "mo:base/Debug";
+import Result "mo:base/Result";
+import DBTypes "../types/types";
 
-actor {
+actor class WebSocket(dbCanisterId: Principal) {
+
+    //deploy websocket:  dfx deploy websocket --argument '(principal "'$(dfx canister id db)'")'
+    let db : DBTypes.DBInterface = actor(Principal.toText(dbCanisterId));
+
     let LABEL_WEBSOCKET : [Nat8] = [119, 101, 98, 115, 111, 99, 107, 101, 116]; // "websocket" in ASCII
     let MSG_TIMEOUT : Nat64 = 5 * 60 * 1000000000; // 5 minutes in nanoseconds
     let MAX_NUMBER_OF_RETURNED_MESSAGES : Nat = 50;
@@ -155,11 +160,22 @@ actor {
     };
 
     public func delete_client(clientId : Nat64) : async () {
-        clientCallerMap.delete(clientId);
-        clientPublicKeyMap.delete(clientId);
-        clientGatewayMap.delete(clientId);
-        clientMessageNumMap.delete(clientId);
-        clientIncomingNumMap.delete(clientId);
+        // Convert Nat64 to Int for db call
+        let clientIdInt : Int = Int.abs(Nat64.toNat(clientId));
+        
+        let removeClient = await db.clientDisconnect(clientIdInt);     
+        
+        // Handle text response from db
+        if (Text.contains(removeClient, #text "success")) {
+            Debug.print("Client disconnected successfully");
+            clientCallerMap.delete(clientId);
+            clientPublicKeyMap.delete(clientId);
+            clientGatewayMap.delete(clientId);
+            clientMessageNumMap.delete(clientId);
+            clientIncomingNumMap.delete(clientId);
+        } else {
+            Debug.print("Error deleting client: " # removeClient);
+        };
     };
 
    public shared(msg) func get_cert_messages(nonce : Nat64) : async CertMessages {
@@ -263,9 +279,55 @@ actor {
         CERT_TREE.delete(messageInfo.key);
     };
 
-    public func send_message_from_canister(client_id : Nat64, msg : Blob) : async () {
+    public func send_message_from_canister(client_id : Nat64, msg : Blob, user_principal_id : Text, ws_type : Text, jobResult: Text) : async Result.Result<Text, Text> {
+        Debug.print("send_message_from_canister()");
+        Debug.print("user_principal_id: " # debug_show(user_principal_id));
+        Debug.print("client_id: " # debug_show(client_id));
+        Debug.print("msg: " # debug_show(msg));
+        Debug.print("ws_type: " # debug_show(ws_type));
+
+        // Perform the database operation first
+        let dbResponse = switch (ws_type) {
+            case "open" {
+                Debug.print("Client connecting - check job assignment");
+                let clientIdInt : Int = Int.abs(Nat64.toNat(client_id));
+                await db.clientConnect(user_principal_id, clientIdInt);
+            };
+            case "message" {
+                Debug.print("Client sending message - update job status");
+                let clientIdInt : Int = Int.abs(Nat64.toNat(client_id));
+                await db.updateJobCompleted(user_principal_id, clientIdInt, jobResult);
+            };
+            case _ {
+                return #err("Unsupported message type: " # ws_type);
+            };
+        };
+
+        Debug.print("dbResponse: " # debug_show(dbResponse));
+
+        // Handle the Result type properly
+        let responseMessage = switch (dbResponse) {
+            case (#ok(response)) { response };
+            case (#err(error)) {
+                error
+            };
+        };
+
+        let cborValue_response : Types.Value = #majorType5([
+            (#majorType3("data"), #majorType3(responseMessage))
+        ]);
+
+        let msg_cbor_response = switch (Encoder.encode(cborValue_response)) {
+            case (#ok(bytes)) { Blob.fromArray(bytes) };
+            case (#err(e)) { 
+                Debug.print("Error encoding CBOR: " # debug_show(e));
+                return #err("Error encoding CBOR: " # debug_show(e));
+            };
+        };
+
+        // Normal message handling continues...
         let gateway = switch (await get_client_gateway(client_id)) {
-            case null { return };
+            case null { return #err("Error getting client gateway"); };
             case (?gw) { gw };
         };
 
@@ -294,7 +356,7 @@ actor {
             client_id = client_id;
             sequence_num = await next_client_message_num(client_id);
             timestamp = Nat64.fromNat(Int.abs(time));
-            message = msg;
+            message = msg_cbor_response;
         };
 
         let cborValue = encodeCBORWebsocketMessage(input);
@@ -302,7 +364,7 @@ actor {
             case (#ok(bytes)) { Blob.fromArray(bytes) };
             case (#err(e)) { 
                 Debug.print("Error encoding CBOR: " # debug_show(e));
-                return;
+                return #err("Error encoding CBOR: " # debug_show(e));
             };
         };
 
@@ -320,10 +382,11 @@ actor {
                 switch (Encoder.encode(cborValue)) {
                     case (#ok(bytes)) {
                         GATEWAY_MESSAGES_MAP.put(gateway, Blob.fromArray(bytes));
+                        return #ok("success");
                     };
                     case (#err(e)) {
                         Debug.print("Error encoding CBOR: " # debug_show(e));
-                        return;
+                        return #err("Error encoding CBOR: " # debug_show(e));
                     };
                 };
             };
@@ -345,10 +408,11 @@ actor {
                 switch (Encoder.encode(cborValue)) {
                     case (#ok(bytes)) {
                         GATEWAY_MESSAGES_MAP.put(gateway, Blob.fromArray(bytes));
+                        return #ok("success");
                     };
                     case (#err(e)) {
                         Debug.print("Error encoding CBOR: " # debug_show(e));
-                        return;
+                        return #err("Error encoding CBOR: " # debug_show(e));
                     };
                 };
             };
@@ -603,45 +667,6 @@ actor {
         ])
     };
 
-    private func encodeKeyGatewayTime(kgt : KeyGatewayTime) : Types.Value {
-        #majorType5([
-            (#majorType3("key"), #majorType3(kgt.key)),
-            (#majorType3("gateway"), #majorType3(kgt.gateway)),
-            (#majorType3("time"), #majorType0(kgt.time))
-        ])
-    };
-
-    private func decodeKeyGatewayTime(value : Types.Value) : ?KeyGatewayTime {
-        switch (value) {
-            case (#majorType5(fields)) {
-                var key : ?Text = null;
-                var gateway : ?Text = null;
-                var time : ?Nat64 = null;
-
-                for ((k, v) in fields.vals()) {
-                    switch (k, v) {
-                        case (#majorType3("key"), #majorType3(k)) { key := ?k };
-                        case (#majorType3("gateway"), #majorType3(g)) { gateway := ?g };
-                        case (#majorType3("time"), #majorType0(t)) { time := ?t };
-                        case _ {};
-                    };
-                };
-
-                switch (key, gateway, time) {
-                    case (?k, ?g, ?t) {
-                        ?{
-                            key = k;
-                            gateway = g;
-                            time = t;
-                        }
-                    };
-                    case _ { null };
-                };
-            };
-            case _ { null };
-        };
-    };
-
     // Add helper function to get queue size
     public func get_delete_queue_size() : async Nat {
         Iter.size(MESSAGE_DELETE_QUEUE.entries())
@@ -650,22 +675,5 @@ actor {
     // Add helper function to get queue items
     public func get_delete_queue_items() : async [KeyGatewayTime] {
         Iter.toArray(Iter.map(MESSAGE_DELETE_QUEUE.entries(), func (entry : (Text, KeyGatewayTime)) : KeyGatewayTime { entry.1 }))
-    };
-
-    // Helper function to encode CertMessages to CBOR
-    func encodeCertMessages(certMessages : CertMessages) : Blob {
-        let cborValue : Types.Value = #majorType5([
-            (#majorType3("messages"), encodeCBORMessages(certMessages.messages)),
-            (#majorType3("cert"), #majorType2(certMessages.cert)),
-            (#majorType3("tree"), #majorType2(certMessages.tree))
-        ]);
-
-        switch (Encoder.encode(cborValue)) {
-            case (#ok(bytes)) { Blob.fromArray(bytes) };
-            case (#err(e)) {
-                Debug.print("Error encoding CBOR: " # debug_show(e));
-                Blob.fromArray([]) // Return an empty Blob in case of error
-            };
-        };
     };
 }
