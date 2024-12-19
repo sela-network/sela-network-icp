@@ -1,6 +1,6 @@
 import Principal "mo:base/Principal";
 import Time "mo:base/Time";
-import Timer "mo:base/Timer";
+import _Timer "mo:base/Timer";
 import Text "mo:base/Text";
 import Int "mo:base/Int";
 import Result "mo:base/Result";
@@ -14,34 +14,17 @@ import Array "mo:base/Array";
 import Nat = "mo:base/Nat";
 import JSON "mo:json/JSON";
 
+import DatabaseOps "./modules/database_ops";
+import HttpHandler "./modules/http_handler";
+
 actor {
     private let DEAD_TIMEOUT : Int = 3_600_000_000_000; // 1 hour in nanoseconds
 
-    type HttpRequest = HTTP.HttpRequest;
-    type HttpResponse = HTTP.HttpResponse;
+    type ClientStruct = DatabaseOps.ClientStruct;
+    type JobStruct = DatabaseOps.JobStruct;
+    type HttpRequest = HttpHandler.HttpRequest;
+    type HttpResponse = HttpHandler.HttpResponse;
 
-    type ClientStruct = {
-        user_principal_id : Text; 
-        client_id : Int;
-        jobID : Text;
-        jobStatus : Text;
-        wsConnect : Int; // time of ws connection
-        wsDisconnect : Int; // time of ws disconnection
-    };
-
-   //if no job available :  client waiting for job
-   //if job available :  client working on job with jobID
-
-    type JobStruct = {
-        jobID : Text;
-        jobType : Text;
-        target : Text;
-        state : Text; // 'complete', 'pending', 'reject', 'ongoing'
-        result : Text;
-        user_principal_id : Text;
-        assignedAt : Int;
-        completeAt : Int;
-    };
 
     public shared func dummyAutoScalingHook(_ : Text) : async Text {
         return "";
@@ -190,7 +173,22 @@ actor {
                 case null "unknown";
             };
 
+            let fetchedClientID = switch (clientEntity) {
+                case (?entity) {
+                    switch (Entity.getAttributeMapValueForKey(entity.attributes, "client_id")) {
+                        case (?(#int(clientID))) clientID;
+                        case _ 0;
+                    };
+                };
+                case null 0;
+            };
+
             Debug.print("JobID fetched: " # jobID);
+            Debug.print("ClientID fetched: " # Int.toText(fetchedClientID));
+
+            if(fetchedClientID != client_id) {
+                return #err("ClientID mismatch");
+            };
 
             // First, retrieve the job to check its current state
             let jobEntity = CanDB.get(jobDB, { pk = "jobTable"; sk = jobID });
@@ -212,7 +210,7 @@ actor {
                     };
 
                     // Update job state to completed
-                    let updatedJobResult = await updateJobState(jobID, user_principal_id, "completed", assignedAt, Time.now());
+                    let updatedJobResult = await updateJobState(jobID, user_principal_id, "completed", assignedAt, Time.now(), result);
 
                     switch (updatedJobResult) {
                         case (#ok()) {
@@ -335,7 +333,7 @@ actor {
 
         let skLowerBound = "job"; // Start of the range for client keys
         let skUpperBound = "job~"; // End of the range for client keys
-        let limit = 1000; // Limit number of records to scan
+        let limit = 10000; // Limit number of records to scan
         let ascending = null; // Not specifying order
 
         // Use CanDB.scan to retrieve job records
@@ -350,10 +348,7 @@ actor {
         );
 
         Debug.print("Total entities: " # debug_show (entities.size()));
-        for (entity in entities.vals()) {
-            Debug.print("Entity: " # debug_show (entity));
-        };
-
+        
         let pendingJobs = Array.filter(
             entities,
             func(entity : { attributes : Entity.AttributeMap; pk : Text; sk : Text }) : Bool {
@@ -366,8 +361,6 @@ actor {
                 };
             }
         );
-
-        Debug.print("Filtered pending jobs: " # debug_show(pendingJobs));
 
         if (pendingJobs.size() == 0) {
             let jsonResponse = "{" #
@@ -402,7 +395,7 @@ actor {
                 {
                     skLowerBound = "job";
                     skUpperBound = "job~";
-                    limit = 100;
+                    limit = 10000;
                     ascending = null;
                     filter = ?{
                         attributeName = "state";
@@ -424,10 +417,7 @@ actor {
                         case _ { false };
                     };
                 }
-            );
-
-            Debug.print("Filtered pending jobs: " # debug_show(pendingJobs));
-           
+            );           
             switch (pendingJobs.size()) {
                 case 0 {
                     Debug.print("No pending jobs found");
@@ -439,7 +429,7 @@ actor {
                     let jobID = job.sk;
 
                     // Update job state to ongoing
-                    let updatedJobResult = await updateJobState(jobID, user_principal_id, "ongoing", Time.now(), 0);
+                    let updatedJobResult = await updateJobState(jobID, user_principal_id, "ongoing", Time.now(), 0, "");
 
                     switch (updatedJobResult) {
                         case (#ok()) {
@@ -474,7 +464,7 @@ actor {
                                 };
                                 case (#err(errorMsg)) {
                                     // Revert job state if client update fails
-                                    ignore updateJobState(jobID, user_principal_id, "pending", 0, 0);
+                                    ignore updateJobState(jobID, user_principal_id, "pending", 0, 0, "");
                                     #err("Failed to update client state: " # errorMsg);
                                 };
                             };
@@ -520,7 +510,7 @@ actor {
                         };
                     };
 
-                    let updated = switch (
+                    let _ = switch (
                         CanDB.update(
                             clientDB,
                             {
@@ -534,7 +524,7 @@ actor {
                             Debug.print("Failed to update client: " # user_principal_id);
                             #err("Failed to update client");
                         };
-                        case (?updatedEntity) {
+                        case (?_) {
                             #ok();
                         };
                     };
@@ -550,7 +540,7 @@ actor {
         };
     };
 
-    private func updateJobState(jobID : Text, user_principal_id : Text, newState : Text, assignedAt : Int, completeAt : Int) : async Result.Result<(), Text> {
+    private func updateJobState(jobID : Text, user_principal_id : Text, newState : Text, assignedAt : Int, completeAt : Int, result: Text) : async Result.Result<(), Text> {
         Debug.print("Attempting to update job info with jobID: " # jobID);
 
         try {
@@ -559,6 +549,7 @@ actor {
                 ("assignedAt", #int(assignedAt)),
                 ("completeAt", #int(completeAt)),
                 ("user_principal_id", #text(user_principal_id)),
+                ("result", #text(result)),
             ];
 
             func updateAttributes(attributeMap : ?Entity.AttributeMap) : Entity.AttributeMap {
@@ -572,7 +563,7 @@ actor {
                 };
             };
 
-            let updated = switch (
+            let _updated = switch (
                 CanDB.update(
                     jobDB,
                     {
@@ -586,7 +577,7 @@ actor {
                     Debug.print("Failed to update job: " # jobID);
                     #err("Failed to update job");
                 };
-                case (?updatedEntity) {
+                case (?_) {
                     #ok();
                 };
             };
@@ -603,7 +594,7 @@ actor {
             let existingClient = CanDB.get(clientDB, { pk = "clientTable"; sk = user_principal_id });
 
             switch (existingClient) {
-                case (?clientEntity) {
+                case (?_) {
                     Debug.print("Client found, updating client_id");
 
                     // Only update the client_id attribute
@@ -654,78 +645,13 @@ actor {
     };
 
     private func unwrapJobEntity(entity : Entity.Entity) : ?JobStruct {
-        let attributes = entity.attributes;
-        
-        do ? {
-            {
-                jobID = switch (Entity.getAttributeMapValueForKey(attributes, "jobID")) {
-                    case (?(#text(v))) v;
-                    case _ "";
-                };
-                jobType = switch (Entity.getAttributeMapValueForKey(attributes, "jobType")) {
-                    case (?(#text(v))) v;
-                    case _ "";
-                };
-                target = switch (Entity.getAttributeMapValueForKey(attributes, "target")) {
-                    case (?(#text(v))) v;
-                    case _ "";
-                };
-                state = switch (Entity.getAttributeMapValueForKey(attributes, "state")) {
-                    case (?(#text(v))) v;
-                    case _ "";
-                };
-                result = switch (Entity.getAttributeMapValueForKey(attributes, "result")) {
-                    case (?(#text(v))) v;
-                    case _ "";
-                };
-                user_principal_id = switch (Entity.getAttributeMapValueForKey(attributes, "user_principal_id")) {
-                    case (?(#text(v))) v;
-                    case _ "";
-                };
-                assignedAt = switch (Entity.getAttributeMapValueForKey(attributes, "assignedAt")) {
-                    case (?(#int(v))) v;
-                    case _ 0;
-                };
-                completeAt = switch (Entity.getAttributeMapValueForKey(attributes, "completeAt")) {
-                    case (?(#int(v))) v;
-                    case _ 0;
-                };
-            };
-        };
+        DatabaseOps.unwrapJobEntity(entity)
     };
 
     private func unwrapClientEntity(entity : Entity.Entity) : ?ClientStruct {
-        let attributes = entity.attributes;
-        
-        do ? {
-            {
-                user_principal_id = switch (Entity.getAttributeMapValueForKey(attributes, "user_principal_id")) {
-                    case (?(#text(v))) v;
-                    case _ "";
-                };
-                client_id = switch (Entity.getAttributeMapValueForKey(attributes, "client_id")) {
-                    case (?(#int(v))) v;
-                    case _ 0;
-                };
-                jobID = switch (Entity.getAttributeMapValueForKey(attributes, "jobID")) {
-                    case (?(#text(v))) v;
-                    case _ "";
-                };
-                jobStatus = switch (Entity.getAttributeMapValueForKey(attributes, "jobStatus")) {
-                    case (?(#text(v))) v;
-                    case _ "";
-                };
-                wsConnect = switch (Entity.getAttributeMapValueForKey(attributes, "wsConnect")) {
-                    case (?(#int(v))) v;
-                    case _ 0;
-                };
-                wsDisconnect = switch (Entity.getAttributeMapValueForKey(attributes, "wsDisconnect")) {
-                    case (?(#int(v))) v;
-                    case _ 0;
-                };
-            };
-        };
+        DatabaseOps.unwrapClientEntity(entity)
     };
+
 
     public func clientConnect(user_principal_id : Text, client_id : Int) : async Result.Result<Text, Text> {
         var jsonResponse : Text = "";
@@ -743,24 +669,80 @@ actor {
                     Debug.print("Client not found for user_principal_id: " # user_principal_id);
                     let registerClient = await addClientToDB(user_principal_id, client_id);
                     switch (registerClient) {
-                        case (#ok(successMessage)) {
+                        case (#ok(_)) {
                             Debug.print("Client added to DB for user_principal_id: " # user_principal_id);
-                            let jsonResponse = "{" #
-                                "\"status\": \"success\"," #
-                                "\"message\": \"New Client added to DB\"," #
-                                "\"user_principal_id\": \"" # user_principal_id # "\"," #
-                                "\"state\": \"notWorking\"" #
-                            "}";
-                            #ok(jsonResponse);
+                            // After client is created, try to assign a job
+                            let assignedJob = await assignJobToClient(user_principal_id, client_id);
+                            switch (assignedJob) {
+                                case (#ok(jobResponse)) {
+                                    // Parse the response to get jobId
+                                    let jobData = switch (Text.split(jobResponse, #text "\"jobId\": \"")) {
+                                        case (iter) {
+                                            switch (iter.next()) {
+                                                case null { null };
+                                                case (?_) {
+                                                    switch (iter.next()) {
+                                                        case null { null };
+                                                        case (?jobIdPart) {
+                                                            let jobId = Text.split(jobIdPart, #text "\"").next();
+                                                            jobId;
+                                                        };
+                                                    };
+                                                };
+                                            };
+                                        };
+                                    };
+                                    
+                                    switch (jobData) {
+                                        case (?jobId) {
+                                            // Get full job details
+                                            let job = switch (await getJobWithID(jobId)) {
+                                                case (#ok(jobDetails)) {
+                                                    // Create enhanced JSON response with full job details
+                                                    let jsonResponse = "{" #
+                                                        "\"status\": \"success\"," #
+                                                        "\"message\": \"Job assigned successfully\"," #
+                                                        "\"jobId\": \"" # jobId # "\"," #
+                                                        "\"user_principal_id\": \"" # user_principal_id # "\"," #
+                                                        "\"job\": {" #
+                                                            "\"id\": \"" # jobDetails.jobID # "\"," #
+                                                            "\"status\": \"" # jobDetails.state # "\"," #
+                                                            "\"type\": \"" # jobDetails.jobType # "\"," #
+                                                            "\"jobStatus\": \"" # jobDetails.state # "\"," #
+                                                            "\"created_at\": " # Int.toText(jobDetails.assignedAt) # "," #
+                                                            "\"updated_at\": " # Int.toText(jobDetails.completeAt) # "," #
+                                                            "\"data\": " # jobDetails.target #
+                                                        "}" #
+                                                    "}";
+                                                    #ok(jsonResponse);
+                                                };
+                                                case (#err(error)) {
+                                                    Debug.print("Job found but details not available: " # error);
+                                                    #err(createJsonResponse("error", "Job found but details not available", user_principal_id, "error"));
+                                                };
+                                            };
+                                            job;
+                                        };
+                                        case null {
+                                            Debug.print("Failed to parse job ID from response");
+                                            #err(createJsonResponse("error", "Failed to parse job ID from response", user_principal_id, "error"));
+                                        };
+                                    };
+                                };
+                                case (#err(error)) {
+                                    Debug.print("Client created but job assignment failed: " # error);
+                                    #err("Client created but job assignment failed: " # error);
+                                };
+                            };
                         };
                         case (#err(errorMessage)) {
-                            Debug.print("Failed to update client status: " # errorMessage);
-                            #err(createJsonResponse("error", "Failed to update client status", user_principal_id, "error"));
+                            Debug.print("Failed to create client: " # errorMessage);
+                            #err(createJsonResponse("error", "Failed to create client", user_principal_id, "error"));
                         };
                     };
                 };
                 case (?entity) {
-                    // Client found, continue without changes
+                    //Client found, continue without changes
                     let client : ClientStruct = {
                         user_principal_id = entity.sk;
                         jobID = switch (Entity.getAttributeMapValueForKey(entity.attributes, "jobID")) {
@@ -783,6 +765,11 @@ actor {
                             case (?(#int(t))) t;
                             case _ 0;
                         };
+                    };
+
+                    if (client.jobStatus != "notWorking" and client.jobID != "") {
+                        Debug.print("Client is already working on a job: " # client.jobStatus);
+                        return #err("Client is already working on a job");
                     };
 
                     Debug.print("Client found for user_principal_id: " # user_principal_id);
@@ -854,7 +841,7 @@ actor {
                                 };
                             };
                         };
-                        case (#err(errorMsg)) {
+                        case (#err(_)) {
                             let jsonResponse = "{" #
                                 "\"message\": \"Client waiting for job\"," #
                                 "\"user_principal_id\": \"" # user_principal_id # "\"," #
@@ -923,7 +910,8 @@ actor {
                             "", 
                             "pending",
                             0, 
-                            0
+                            0,
+                            ""
                         );
 
                         let clientUpdateResult = await updateClientState(
@@ -976,7 +964,7 @@ actor {
 
 
     // =============== Maintenance Tasks ===============
-    private func hourlyJobCheck() : async () {
+    private func _hourlyJobCheck() : async () {
         Debug.print("Performing hourly job check...");
         let currentTime = Time.now();
 
@@ -1079,28 +1067,75 @@ actor {
         Debug.print("headers: " # debug_show (headers));
 
         switch (method, path) {
-            case ("POST", "/clientAlive") {
+            case ("GET", "/ping") {
+                let jsonBody = "{" #
+                    "\"status\": \"OK\"," #
+                "}";
+                return {
+                  status_code = 200;
+                  headers = [("Content-Type", "application/json")];
+                  body = Text.encodeUtf8(jsonBody);
+                  streaming_strategy = null;
+                  upgrade = null;
+                };
+            };
+            case ("POST", "/clientConnect") {
                 let authHeader = getHeader(headers, "authorization");
-                switch (authHeader) {
-                    case null {
-                        Debug.print("Missing Authorization header ");
-                        return badRequest("Missing Authorization header");
-                    };
-                    case (?user_principal_id) {
-                        let result = await clientConnect(user_principal_id, 0);
-                        switch (result) {
-                            case (#ok(response)) {
-                                return {
-                                    status_code = 200;
-                                    headers = [("Content-Type", "application/json")];
-                                    body = Text.encodeUtf8(response);
-                                    streaming_strategy = null;
-                                    upgrade = null;
+                
+                // Decode and parse request body
+                let bodyText = switch (Text.decodeUtf8(req.body)) {
+                    case (null) { return badRequest("Invalid UTF-8 in request body") };
+                    case (?v) { v };
+                };
+
+                Debug.print("Decoded body: " # bodyText);
+
+                switch (JSON.parse(bodyText)) {
+                    case (null) { return badRequest("Invalid JSON in request body") };
+                    case (?jsonObj) {
+                        switch (jsonObj) {
+                            case (#Object(fields)) {
+                                var client_id : Int = 0;
+                                
+                                // Extract client_id from request body
+                                for ((key, value) in fields.vals()) {
+                                    switch (key, value) {
+                                        case ("client_id", #Number(v)) { 
+                                            client_id := v;
+                                        };
+                                        case _ {};
+                                    };
+                                };
+
+                                if (client_id == 0) {
+                                    return badRequest("Missing or invalid client_id in request body");
+                                };
+
+                                switch (authHeader) {
+                                    case null {
+                                        Debug.print("Missing Authorization header ");
+                                        return badRequest("Missing Authorization header");
+                                    };
+                                    case (?user_principal_id) {
+                                        let result = await clientConnect(user_principal_id, client_id);
+                                        switch (result) {
+                                            case (#ok(response)) {
+                                                return {
+                                                    status_code = 200;
+                                                    headers = [("Content-Type", "application/json")];
+                                                    body = Text.encodeUtf8(response);
+                                                    streaming_strategy = null;
+                                                    upgrade = null;
+                                                };
+                                            };
+                                            case (#err(error)) {
+                                                return badRequest(error);
+                                            };
+                                        };
+                                    };
                                 };
                             };
-                            case (#err(error)) {
-                                return badRequest(error);
-                            };
+                            case _ { return badRequest("Invalid JSON format") };
                         };
                     };
                 };
@@ -1144,7 +1179,7 @@ actor {
                         Debug.print("Missing Authorization header ");
                         return badRequest("Missing Authorization header");
                     };
-                    case (?user_principal_id) {
+                    case (?_) {
 
                         let bodyText = switch (Text.decodeUtf8(req.body)) {
                             case (null) { return badRequest("Invalid UTF-8 in request body") };
@@ -1159,12 +1194,11 @@ actor {
                                 switch (jsonObj) {
                                     case (#Object(fields)) {
                                         var clientID : Int = 0;
-                                        var user_principal_id : Text = "";
                                         var result : Text = "";
                                         
                                         for ((key, value) in fields.vals()) {
                                             switch (key, value) {
-                                                case ("user_principal_id", #String(v)) { user_principal_id := v };
+                                                case ("clientID", #Number(v)) { clientID := v };
                                                 case ("result", #String(v)) { result := v };
                                                 case _ {};
                                             };
@@ -1174,20 +1208,29 @@ actor {
                                             return badRequest("Missing or invalid jobID or result");
                                         };
 
-                                        Debug.print("Parsed data - jobID: " # user_principal_id # ", result: " # result);
-                                        let updateResult = await updateJobCompleted(user_principal_id, clientID, result);
-                                        switch (updateResult) {
-                                            case (#ok(successMessage)) {
-                                                return {
-                                                    status_code = 200;
-                                                    headers = [("Content-Type", "application/json")];
-                                                    body = Text.encodeUtf8(successMessage);
-                                                    streaming_strategy = null;
-                                                    upgrade = null;
-                                                };
+                                        Debug.print("Parsed data - jobID: " # Int.toText(clientID) # ", result: " # result);
+
+                                        switch (authHeader) {
+                                            case null {
+                                                Debug.print("Missing Authorization header ");
+                                                return badRequest("Missing Authorization header");
                                             };
-                                            case (#err(errorMessage)) {
-                                                return badRequest(errorMessage);
+                                            case (?user_principal_id) {
+                                                let updateResult = await updateJobCompleted(user_principal_id, clientID, result);
+                                                    switch (updateResult) {
+                                                        case (#ok(successMessage)) {
+                                                            return {
+                                                                status_code = 200;
+                                                                headers = [("Content-Type", "application/json")];
+                                                                body = Text.encodeUtf8(successMessage);
+                                                                streaming_strategy = null;
+                                                                upgrade = null;
+                                                            };
+                                                        };
+                                                        case (#err(errorMessage)) {
+                                                            return badRequest(errorMessage);
+                                                        };
+                                                    };
                                             };
                                         };
                                     };
@@ -1212,6 +1255,67 @@ actor {
                     };
                 };
             };
+            case ("POST", "/createJob") {
+                let authHeader = getHeader(headers, "authorization");
+                
+                // Decode and parse request body
+                let bodyText = switch (Text.decodeUtf8(req.body)) {
+                    case (null) { return badRequest("Invalid UTF-8 in request body") };
+                    case (?v) { v };
+                };
+
+                Debug.print("Decoded body: " # bodyText);
+
+                switch (JSON.parse(bodyText)) {
+                    case (null) { return badRequest("Invalid JSON in request body") };
+                    case (?jsonObj) {
+                        switch (jsonObj) {
+                            case (#Object(fields)) {
+                                var jobType : Text = "";
+                                var target : Text = "";
+                                
+                                // Extract fields from request body
+                                for ((key, value) in fields.vals()) {
+                                    switch (key, value) {
+                                        case ("jobType", #String(v)) { jobType := v };
+                                        case ("target", #String(v)) { target := v };
+                                        case _ {};
+                                    };
+                                };
+
+                                if (jobType == "" or target == "") {
+                                    return badRequest("Missing or invalid jobType/target in request body");
+                                };
+
+                                switch (authHeader) {
+                                    case null {
+                                        Debug.print("Missing Authorization header");
+                                        return badRequest("Missing Authorization header");
+                                    };
+                                    case (?_) {
+                                        let result = await addJobToDB(jobType, target);
+                                        switch (result) {
+                                            case (#ok(response)) {
+                                                return {
+                                                    status_code = 200;
+                                                    headers = [("Content-Type", "application/json")];
+                                                    body = Text.encodeUtf8(response);
+                                                    streaming_strategy = null;
+                                                    upgrade = null;
+                                                };
+                                            };
+                                            case (#err(error)) {
+                                                return badRequest(error);
+                                            };
+                                        };
+                                    };
+                                };
+                            };
+                            case _ { return badRequest("Invalid JSON format") };
+                        };
+                    };
+                };
+            };
             case _ {
                 return notFound();
             };
@@ -1220,43 +1324,23 @@ actor {
 
     // Helper functions for HTTP responses
     func badRequest(msg : Text) : HttpResponse {
-        {
-            status_code = 400;
-            headers = [("Content-Type", "text/plain")];
-            body = Text.encodeUtf8(msg);
-            streaming_strategy = null;
-            upgrade = null;
-        };
+        HttpHandler.badRequest(msg)
     };
 
     func notFound() : HttpResponse {
-        {
-            status_code = 404;
-            headers = [("Content-Type", "text/plain")];
-            body = Text.encodeUtf8("Not Found");
-            streaming_strategy = null;
-            upgrade = null;
-        };
+        HttpHandler.notFound()
     };
 
     // Helper function to get header value
     func getHeader(headers : [(Text, Text)], name : Text) : ?Text {
-        for ((key, value) in headers.vals()) {
-            if (Text.equal(key, name)) {
-                return ?value;
-            };
-        };
-        null;
+        HttpHandler.getHeader(headers, name)
     };
 
+
     private func createJsonResponse(status : Text, message : Text, user_principal_id : Text, state : Text) : Text {
-        "{" #
-        "\"status\": \"" # status # "\"," #
-        "\"message\": \"" # message # "\"," #
-        "\"user_principal_id\": \"" # user_principal_id # "\"," #
-        "\"state\": \"" # state # "\"" #
-        "}";
+        HttpHandler.createJsonResponse(status, message, user_principal_id, state)
     };
+
 
     private module DB {
         public func updateEntity(db : CanDB.DB, pk : Text, sk : Text, updates : [(Text, Entity.AttributeValue)]) : async Result.Result<(), Text> {

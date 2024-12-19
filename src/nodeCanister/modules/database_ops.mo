@@ -1,0 +1,121 @@
+import CanDB "mo:candb/CanDB";
+import Entity "mo:candb/Entity";
+import Debug "mo:base/Debug";
+import Result "mo:base/Result";
+import Error "mo:base/Error";
+import Time "mo:base/Time";
+
+module {
+	public let DEAD_TIMEOUT : Int = 3_600_000_000_000; // 1 hour in nanoseconds
+
+	public type ClientStruct = {
+		user_principal_id : Text; 
+		client_id : Int;
+		jobID : Text;
+		jobStatus : Text;
+		wsConnect : Int;
+		wsDisconnect : Int;
+	};
+
+	public type JobStruct = {
+		jobID : Text;
+		jobType : Text;
+		target : Text;
+		state : Text;
+		result : Text;
+		user_principal_id : Text;
+		assignedAt : Int;
+		completeAt : Int;
+	};
+
+	public func updateEntity(db : CanDB.DB, pk : Text, sk : Text, updates : [(Text, Entity.AttributeValue)]) : async Result.Result<(), Text> {
+		try {
+			func updateAttributes(attributeMap : ?Entity.AttributeMap) : Entity.AttributeMap {
+				switch (attributeMap) {
+					case null Entity.createAttributeMapFromKVPairs(updates);
+					case (?map) Entity.updateAttributeMapWithKVPairs(map, updates);
+				};
+			};
+
+			switch (CanDB.update(db, { pk; sk; updateAttributeMapFunction = updateAttributes })) {
+				case null #err("Failed to update entity");
+				case (?_) #ok();
+			};
+		} catch (error) {
+			Debug.print("Error in entity update: " # Error.message(error));
+			#err("Update failed: " # Error.message(error));
+		};
+	};
+
+	public func unwrapJobEntity(entity : Entity.Entity) : ?JobStruct {
+		let attributes = entity.attributes;
+		do ? {
+			{
+				jobID = switch (Entity.getAttributeMapValueForKey(attributes, "jobID")) {
+					case (?(#text(v))) v;
+					case _ "";
+				};
+				jobType = switch (Entity.getAttributeMapValueForKey(attributes, "jobType")) {
+					case (?(#text(v))) v;
+					case _ "";
+				};
+				target = switch (Entity.getAttributeMapValueForKey(attributes, "target")) {
+					case (?(#text(v))) v;
+					case _ "";
+				};
+				state = switch (Entity.getAttributeMapValueForKey(attributes, "state")) {
+					case (?(#text(v))) v;
+					case _ "";
+				};
+				result = switch (Entity.getAttributeMapValueForKey(attributes, "result")) {
+					case (?(#text(v))) v;
+					case _ "";
+				};
+				user_principal_id = switch (Entity.getAttributeMapValueForKey(attributes, "user_principal_id")) {
+					case (?(#text(v))) v;
+					case _ "";
+				};
+				assignedAt = switch (Entity.getAttributeMapValueForKey(attributes, "assignedAt")) {
+					case (?(#int(v))) v;
+					case _ 0;
+				};
+				completeAt = switch (Entity.getAttributeMapValueForKey(attributes, "completeAt")) {
+					case (?(#int(v))) v;
+					case _ 0;
+				};
+			};
+		};
+	};
+
+	public func unwrapClientEntity(entity : Entity.Entity) : ?ClientStruct {
+		let attributes = entity.attributes;
+		do ? {
+			{
+				user_principal_id = switch (Entity.getAttributeMapValueForKey(attributes, "user_principal_id")) {
+					case (?(#text(v))) v;
+					case _ "";
+				};
+				client_id = switch (Entity.getAttributeMapValueForKey(attributes, "client_id")) {
+					case (?(#int(v))) v;
+					case _ 0;
+				};
+				jobID = switch (Entity.getAttributeMapValueForKey(attributes, "jobID")) {
+					case (?(#text(v))) v;
+					case _ "";
+				};
+				jobStatus = switch (Entity.getAttributeMapValueForKey(attributes, "jobStatus")) {
+					case (?(#text(v))) v;
+					case _ "";
+				};
+				wsConnect = switch (Entity.getAttributeMapValueForKey(attributes, "wsConnect")) {
+					case (?(#int(v))) v;
+					case _ 0;
+				};
+				wsDisconnect = switch (Entity.getAttributeMapValueForKey(attributes, "wsDisconnect")) {
+					case (?(#int(v))) v;
+					case _ 0;
+				};
+			};
+		};
+	};
+}
