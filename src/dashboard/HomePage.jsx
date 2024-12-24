@@ -25,12 +25,16 @@ const HomePage = () => {
   const [selectedMenu, setSelectedMenu] = useState(menuItems[0]);
   const { whoamiActor, logout } = useAuth();
   const [principalId, setPrincipalId] = useState(null);
+  const [userData, setUserData] = useState({});
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
     const getPrincipalId = async () => {
       const whoami = await whoamiActor.whoami();
       setPrincipalId(whoami);
+
+      const userData = await whoamiActor.getUserData(whoami.toText());
+      setUserData(userData.ok);
     };
 
     // Call the async function
@@ -78,7 +82,10 @@ const HomePage = () => {
               />
               <Spacing margin={32} />
               {selectedMenu.text === 'Dashboard' ? (
-                <Dashboard handleMoreClick={handleMoreClick} />
+                <Dashboard
+                  handleMoreClick={handleMoreClick}
+                  userData={userData}
+                />
               ) : (
                 selectedMenu.children
               )}
