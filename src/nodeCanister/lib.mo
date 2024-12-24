@@ -6,8 +6,23 @@ import Sock "canister:sock";
 import Canister "canister:webSocketCanister";
 import Debug "mo:base/Debug";
 import Decoder "mo:cbor/Decoder";
+import Http "mo:http-parser";
+import Error "mo:base/Error";
+import JSON "mo:json/JSON";
+import Int "mo:base/Int";
+import Nat16 "mo:base/Nat16";
+import Nat "mo:base/Nat";
+import DatabaseOps "../nodeCanister/modules/database_ops";
+import HttpHandler "../nodeCanister/modules/http_handler";
 
 actor {
+
+    type HttpRequest = HttpHandler.HttpRequest;
+    type HttpResponse = HttpHandler.HttpResponse;
+
+    var rpcCanisterIDURL = "a3shf-5eaaa-aaaaa-qaafa-cai.localhost:4943";
+    var rpcCanisterID = "a3shf-5eaaa-aaaaa-qaafa-cai";
+
     // Type definitions
     public type WebsocketMessage = {
         client_id : Nat64;
@@ -177,9 +192,112 @@ actor {
         await Sock.delete_client(clientId);
     };
 
+    public func requestAuth(client_id: Nat64) : async Bool {
+        //call RPC canister via http request
+        let url = "http://" # rpcCanisterIDURL # "/requestAuth";
+        let queryParams = [("clientId", Nat64.toText(client_id))];
+
+        // Prepare the HTTP request (method GET, URL, headers)
+        let request : Http.HttpRequest = {
+            url = url;
+            method = "GET";
+            headers = [];
+            body = "";
+            certificate_version = null;
+            max_response_bytes = null;
+            transform = null;
+            query_parameters = queryParams;
+        };
+
+        let ic : actor {
+            http_request : Http.HttpRequest -> async Http.HttpResponse;
+        } = actor (rpcCanisterID);
+
+        try {
+            let response = await ic.http_request(request);
+            switch (Text.decodeUtf8(response.body)) {
+                case (?body) {
+                    Debug.print("Response body: " # body);
+                    return true;
+                };
+                case null {
+                    return false;
+                };
+            };
+        } catch (error) {
+            let errorMessage = Error.message(error);
+            Debug.print("Error calling target canister: " # errorMessage);
+            return false;
+        };
+        return false;
+    };
+
+    public func responseAuth() : async Bool {
+        //call RPC canister via http request
+        let url = "http://" # rpcCanisterIDURL # "/responseAuth";
+        let headers = Http.Headers([("Authorization", "success")]);
+
+        // Prepare the HTTP request (method GET, URL, headers)
+        let request : Http.HttpRequest = {
+            url = url;
+            method = "GET";
+            headers = headers.original;
+            body = "";
+            certificate_version = null;
+            max_response_bytes = null;
+            transform = null;
+        };
+
+        let ic : actor {
+            http_request : Http.HttpRequest -> async Http.HttpResponse;
+        } = actor (rpcCanisterID);
+
+        try {
+            let response = await ic.http_request(request);
+            
+            // Check if the status code is 200 (OK)
+            if (response.status_code == 200) {
+                switch (Text.decodeUtf8(response.body)) {
+                    case (?body) {
+                        Debug.print("Response body: " # body);
+                        
+                        // Parse the JSON body
+                        switch (JSON.parse(body)) {
+                            case (?parsed) {
+                                switch (parsed) {
+                                    case (#Object(fields)) {
+                                        for ((key, value) in fields.vals()) {
+                                            if (key == "status" and value == #String("OK")) {
+                                                return true;
+                                            };
+                                        };
+                                    };
+                                    case _ {};
+                                };
+                            };
+                            case null {
+                                Debug.print("Failed to parse JSON response");
+                            };
+                        };
+                    };
+                    case null {
+                        Debug.print("Failed to decode response body");
+                    };
+                };
+            } else {
+                Debug.print("HTTP status code is not 200: " # Nat.toText(Nat16.toNat(response.status_code)));
+            };
+        } catch (error) {
+            let errorMessage = Error.message(error);
+            Debug.print("Error calling target canister: " # errorMessage);
+        };
+
+        return false;
+    };
+
     // Gateway calls this method to pass on the message from the client to the canister.
     public func ws_message(msg : Blob) : async Text {
-        Debug.print("msg: " # debug_show (msg));
+        Debug.print("Inside ws_message(), msg: " # debug_show (msg));
 
         let decoded : ClientMessage = switch (Decoder.decode(msg)) {
             case (#ok(#majorType6 { value = #majorType5(fields) })) {
@@ -268,62 +386,81 @@ actor {
 
         let clientId = content.client_id;
 
-        // Verify the signature
-        let clientKey = switch (await Sock.get_client_public_key(clientId)) {
-            case (?key) { key };
-            case null { 
-                Debug.print("Client key not found");
-                return "{" #
-                    "\"status\": \"error\"," #
-                    "\"message\": \"Client key not found\"" #
-                "}";
-            };
-        };
-
-        let publicKeyBytes = Blob.toArray(clientKey);
-        let signatureBytes = Blob.toArray(decoded.sig);
-        let messageBytes = Blob.toArray(decoded.val);
-
-        let valid = Ed25519.ED25519.verify(signatureBytes, messageBytes, publicKeyBytes);
-
-        if (valid) {
-            // Verify the message sequence number
-            let clientIncomingNum = await Sock.get_client_incoming_num(clientId);
-            if (content.sequence_num == clientIncomingNum) {
-                await Sock.put_client_incoming_num(clientId, content.sequence_num + 1);
-                
-                // Create a new object with the expected structure
-                let adjustedContent = {
-                    client_id = content.client_id;
-                    message = content.message;
+        let checkAuth = await requestAuth(clientId);
+        if (checkAuth){
+            // Verify the signature
+            let clientKey = switch (await Sock.get_client_public_key(clientId)) {
+                case (?key) { key };
+                case null { 
+                    Debug.print("Client key not found");
+                    return "{" #
+                        "\"status\": \"error\"," #
+                        "\"message\": \"Client key not found\"" #
+                    "}";
                 };
-                
-                let canisterResponse = await Canister.ws_on_message(adjustedContent);
-                switch (canisterResponse) {
-                    case (#ok(jsonResponse)) {
-                        jsonResponse;  // Pass through the JSON response directly
+            };
+
+            let publicKeyBytes = Blob.toArray(clientKey);
+            let signatureBytes = Blob.toArray(decoded.sig);
+            let messageBytes = Blob.toArray(decoded.val);
+
+            let valid = Ed25519.ED25519.verify(signatureBytes, messageBytes, publicKeyBytes);
+
+            if (valid) {
+                // Verify the message sequence number
+                let clientIncomingNum = await Sock.get_client_incoming_num(clientId);
+                if (content.sequence_num == clientIncomingNum) {
+                    await Sock.put_client_incoming_num(clientId, content.sequence_num + 1);
+                    
+                    // Create a new object with the expected structure
+                    let adjustedContent = {
+                        client_id = content.client_id;
+                        message = content.message;
                     };
-                    case (#err(error)) {
+
+                    let checkForResponseAuth = await responseAuth();
+                    if (checkForResponseAuth) {
+                        Debug.print("Response Authentication Success");
+                        let canisterResponse = await Canister.ws_on_message(adjustedContent);
+                        switch (canisterResponse) {
+                            case (#ok(jsonResponse)) {
+                                jsonResponse;  // Pass through the JSON response directly
+                            };
+                            case (#err(error)) {
+                                "{" #
+                                    "\"status\": \"error\"," #
+                                    "\"message\": \"" # error # "\"" #
+                                "}";
+                            };
+                        };
+                    } else {
+                        Debug.print("Response Authentication failed");
                         "{" #
                             "\"status\": \"error\"," #
-                            "\"message\": \"" # error # "\"" #
+                            "\"message\": \"Response Authentication failed\"" #
                         "}";
                     };
+                } else {
+                    Debug.print("Invalid sequence number");
+                    "{" #
+                        "\"status\": \"error\"," #
+                        "\"message\": \"Invalid sequence number\"" #
+                    "}";
                 };
             } else {
-                Debug.print("Invalid sequence number");
+                Debug.print("Signature verification failed");
                 "{" #
                     "\"status\": \"error\"," #
-                    "\"message\": \"Invalid sequence number\"" #
+                    "\"message\": \"Signature verification failed\"" #
                 "}";
             };
-        } else {
-            Debug.print("Signature verification failed");
+        }else{
+            Debug.print("Authentication failed");
             "{" #
                 "\"status\": \"error\"," #
-                "\"message\": \"Signature verification failed\"" #
+                "\"message\": \"Authentication failed\"" #
             "}";
-        };
+        }
     };
 
     // Gateway polls this method to get messages for all the clients it serves.

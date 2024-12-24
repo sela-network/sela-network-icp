@@ -14,7 +14,6 @@ actor {
         text : Text;
         data : Text;
         user_principal_id : Text;
-        ws_type : Text;
     };
 
     // Define the WebsocketMessage type
@@ -26,10 +25,9 @@ actor {
     // Function to handle WebSocket open event
     public func ws_on_open(client_id : Nat64, userPrincipalID : Text) : async Result.Result<Text, Text> {
         let msg = {
-            text = "ping";
-            data = "testdataping"; 
+            text = "PING";
+            data = "ping"; 
             user_principal_id = userPrincipalID;
-            ws_type = "open";
         };
         let wsResponse = await ws_send_app_message(client_id, msg);
         Debug.print("wsResponse from ws_send_app_message in ws_on_open(): " # debug_show(wsResponse));
@@ -82,10 +80,9 @@ actor {
         Debug.print("decoded data: " # debug_show(decoded.data));
 
         let new_msg : AppMessage = {
-            text = decoded.text # " ping";
+            text = decoded.text;
             data = decoded.data;  // Use the original data
             user_principal_id = decoded.user_principal_id;
-            ws_type = "message";
         };
         Debug.print("Sending message: " # debug_show(new_msg));
         let wsResponse = await ws_send_app_message(content.client_id, new_msg);
@@ -105,7 +102,6 @@ actor {
             (#majorType3("text"), #majorType3(msg.text)),
             (#majorType3("data"), #majorType3(msg.data)),
             (#majorType3("user_principal_id"), #majorType3(msg.user_principal_id)),
-            (#majorType3("ws_type"), #majorType3(msg.ws_type))
         ]);
 
         let msg_cbor = switch (Encoder.encode(cborValue)) {
@@ -120,7 +116,7 @@ actor {
         Debug.print("msg: " # debug_show(msg));
         Debug.print("msg_cbor: " # debug_show(msg_cbor));
 
-        let wsResponse = await WebSocket.send_message_from_canister(client_id, msg_cbor, msg.user_principal_id, msg.ws_type, msg.data);
+        let wsResponse = await WebSocket.send_message_from_canister(client_id, msg_cbor, msg);
         switch (wsResponse) {
             case (#ok(jsonResponse)) {
                 #ok(jsonResponse)  // Wrap response in #ok variant

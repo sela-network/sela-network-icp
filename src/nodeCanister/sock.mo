@@ -19,7 +19,7 @@ import Decoder "mo:cbor/Decoder";
 import Types "mo:cbor/Types";
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
-import DBTypes "../types/types";
+import DBTypes "./types/types";
 
 actor class WebSocket(dbCanisterId: Principal) {
 
@@ -56,6 +56,13 @@ actor class WebSocket(dbCanisterId: Principal) {
         sequence_num : Nat64;
         timestamp : Nat64;
         message : Blob;
+    };
+
+    // Define the AppMessage type
+    type AppMessage = {
+        text : Text;
+        data : Text;
+        user_principal_id : Text;
     };
 
     var nextClientId : Nat64 = 16;
@@ -279,27 +286,31 @@ actor class WebSocket(dbCanisterId: Principal) {
         CERT_TREE.delete(messageInfo.key);
     };
 
-    public func send_message_from_canister(client_id : Nat64, msg : Blob, user_principal_id : Text, ws_type : Text, jobResult: Text) : async Result.Result<Text, Text> {
+    public func send_message_from_canister(client_id : Nat64, msg : Blob, msg_data : AppMessage) : async Result.Result<Text, Text> {
         Debug.print("send_message_from_canister()");
-        Debug.print("user_principal_id: " # debug_show(user_principal_id));
+        Debug.print("user_principal_id: " # debug_show(msg_data.user_principal_id));
         Debug.print("client_id: " # debug_show(client_id));
-        Debug.print("msg: " # debug_show(msg));
-        Debug.print("ws_type: " # debug_show(ws_type));
+        Debug.print("msg_data: " # debug_show(msg_data));
 
         // Perform the database operation first
-        let dbResponse = switch (ws_type) {
-            case "open" {
+        let dbResponse = switch (msg_data.text) {
+            case "PING" {
                 Debug.print("Client connecting - check job assignment");
                 let clientIdInt : Int = Int.abs(Nat64.toNat(client_id));
-                await db.clientConnect(user_principal_id, clientIdInt);
+                await db.clientConnect(msg_data.user_principal_id, clientIdInt);
+            };
+            case "INTERNET_SPEED_TEST" {
+                Debug.print("Client sending message - update internet speed");
+                let clientIdInt : Int = Int.abs(Nat64.toNat(client_id));
+                await db.updateClientInternetSpeed(msg_data.user_principal_id, msg_data.data);
             };
             case "message" {
                 Debug.print("Client sending message - update job status");
                 let clientIdInt : Int = Int.abs(Nat64.toNat(client_id));
-                await db.updateJobCompleted(user_principal_id, clientIdInt, jobResult);
+                await db.updateJobCompleted(msg_data.user_principal_id, clientIdInt, msg_data.data);
             };
             case _ {
-                return #err("Unsupported message type: " # ws_type);
+                return #err("Unsupported message type: " # msg_data.text);
             };
         };
 

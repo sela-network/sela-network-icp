@@ -6,13 +6,13 @@ import Int "mo:base/Int";
 import Result "mo:base/Result";
 import CanDB "mo:candb/CanDB";
 import Error "mo:base/Error";
-import HTTP "../utils/Http";
 import Random "../utils/Random";
 import Entity "mo:candb/Entity";
 import Debug "mo:base/Debug";
 import Array "mo:base/Array";
 import Nat = "mo:base/Nat";
 import JSON "mo:json/JSON";
+import Float "mo:base/Float";
 
 import DatabaseOps "./modules/database_ops";
 import HttpHandler "./modules/http_handler";
@@ -61,6 +61,8 @@ actor {
                 ("client_id", #int(client_id)),
                 ("jobID", #text("")),
                 ("jobStatus", #text("notWorking")),
+                ("downloadSpeed", #float(0.0)),
+                ("ping", #int(0)),
                 ("wsConnect", #int(Time.now())),
                 ("wsDisconnect", #int(0)),
             ];
@@ -270,6 +272,10 @@ actor {
             Debug.print("Error in updateJobCompleted: " # Error.message(error));
             #err("An unexpected error occurred: " # Error.message(error));
         };
+    };
+
+    public query func getOptimalNode() : async Result.Result<Text, Text> {
+        #ok("ok")
     };
 
     public query func getJobWithID(jobID : Text) : async Result.Result<JobStruct, Text> {
@@ -644,6 +650,127 @@ actor {
         };
     };
 
+    public func updateClientInternetSpeed(user_principal_id : Text, data : Text) : async Result.Result<Text, Text> {
+        Debug.print("Attempting to update client internet data with user_principal_id: " # user_principal_id);
+
+        try {
+            let existingClient = CanDB.get(clientDB, { pk = "clientTable"; sk = user_principal_id });
+
+            switch (existingClient) {
+                case null {
+                    Debug.print("Client does not exist with user_principal_id: " # user_principal_id);
+                    return #err("Client does not exist");
+                };
+                case (?_clientEntity) {
+                    Debug.print("Client found in DB with user_principal_id: " # user_principal_id);
+
+                    // Parse the JSON string
+                    let parsedData = JSON.parse(data);
+
+                    switch (parsedData) {
+                        case null {
+                            return #err("Failed to parse JSON data");
+                        };
+                        case (?parsed) {
+                            switch (parsed) {
+                                case (#Object(fields)) {
+                                    var downloadSpeed : ?Float = null;
+                                    var ping : ?Int = null;
+
+                                    for ((key, value) in fields.vals()) {
+                                        switch (key, value) {
+                                            case ("downloadSpeed", #Number(n)) {
+                                                downloadSpeed := ?Float.fromInt(n);
+                                            };
+                                            case ("ping", #Number(n)) {
+                                                ping := ?n;
+                                            };
+                                            case _ {};
+                                        };
+                                    };
+
+                                    if (downloadSpeed == null) {
+                                        return #err("downloadSpeed not found or invalid in JSON");
+                                    };
+                                    if (ping == null) {
+                                        return #err("ping not found or invalid in JSON");
+                                    };
+
+                                    // Log extracted values
+                                    // Log extracted values
+                                    switch (downloadSpeed) {
+                                        case (?speed) { Debug.print("Download Speed: " # Float.toText(speed)); };
+                                        case null { Debug.print("Download Speed: null"); };
+                                    };
+                                    switch (ping) {
+                                        case (?p) { Debug.print("Ping: " # Int.toText(p)); };
+                                        case null { Debug.print("Ping: null"); };
+                                    };
+
+                                    // Unwrap the optional values
+                                    let unwrappedSpeed = switch (downloadSpeed) {
+                                        case (?speed) { speed };
+                                        case null { 0.0 }; // Default value, though this case should never occur due to earlier checks
+                                    };
+                                    let unwrappedPing = switch (ping) {
+                                        case (?p) { p };
+                                        case null { 0 }; // Default value, though this case should never occur due to earlier checks
+                                    };
+
+                                    let updatedAttributes : [(Text, Entity.AttributeValue)] = [
+                                        ("downloadSpeed", #float(unwrappedSpeed)),
+                                        ("ping", #int(unwrappedPing))
+                                    ];
+
+                                    func updateAttributes(attributeMap : ?Entity.AttributeMap) : Entity.AttributeMap {
+                                        switch (attributeMap) {
+                                            case null {
+                                                Entity.createAttributeMapFromKVPairs(updatedAttributes);
+                                            };
+                                            case (?map) {
+                                                Entity.updateAttributeMapWithKVPairs(map, updatedAttributes);
+                                            };
+                                        };
+                                    };
+
+
+                                    let updateResult = switch (
+                                        CanDB.update(
+                                            clientDB,
+                                            {
+                                                pk = "clientTable";
+                                                sk = user_principal_id;
+                                                updateAttributeMapFunction = updateAttributes;
+                                            },
+                                        )
+                                    ) {
+                                        case null {
+                                            Debug.print("Failed to update client internet speed: " # user_principal_id);
+                                            #err("Failed to update client");
+                                        };
+                                        case (?_) {
+                                            Debug.print("Successfully updated internet speed for user_principal_id: " # user_principal_id);
+                                            #ok("Client internet speed updated successfully");
+                                        };
+                                    };
+
+                                    return updateResult;
+                                };
+                                case _ {
+                                    return #err("Parsed JSON is not an object");
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        } catch (error) {
+            Debug.print("Error caught while updating client internet speed: " # Error.message(error));
+            return #err("Failed to update client internet speed: " # Error.message(error));
+        };
+    };
+
+
     private func unwrapJobEntity(entity : Entity.Entity) : ?JobStruct {
         DatabaseOps.unwrapJobEntity(entity)
     };
@@ -756,6 +883,14 @@ actor {
                         jobStatus = switch (Entity.getAttributeMapValueForKey(entity.attributes, "jobStatus")) {
                             case (?(#text(j))) j;
                             case _ "";
+                        };
+                        downloadSpeed = switch (Entity.getAttributeMapValueForKey(entity.attributes, "downloadSpeed")) {
+                            case (?(#float(j))) j;
+                            case _ 0.0;
+                        };
+                        ping = switch (Entity.getAttributeMapValueForKey(entity.attributes, "ping")) {
+                            case (?(#int(j))) j;
+                            case _ 0;
                         };
                         wsConnect = switch (Entity.getAttributeMapValueForKey(entity.attributes, "wsConnect")) {
                             case (?(#int(t))) t;

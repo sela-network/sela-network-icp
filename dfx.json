@@ -1,5 +1,16 @@
 {
   "canisters": {
+    "rpcCanister": {
+      "main": "src/rpcCanister/main.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/rpcCanister",
+        "node_compatibility": true
+      }
+    },
     "backend": {
       "main": "src/backend/main.mo",
       "type": "motoko",
@@ -66,7 +77,7 @@
         "node_compatibility": true
       }
     },
-    "internet_identity": {
+    "internetIdentity": {
       "type": "custom",
       "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",
       "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz",

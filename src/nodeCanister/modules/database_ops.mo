@@ -3,7 +3,7 @@ import Entity "mo:candb/Entity";
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
 import Error "mo:base/Error";
-import Time "mo:base/Time";
+import Float "mo:base/Float";
 
 module {
 	public let DEAD_TIMEOUT : Int = 3_600_000_000_000; // 1 hour in nanoseconds
@@ -13,6 +13,8 @@ module {
 		client_id : Int;
 		jobID : Text;
 		jobStatus : Text;
+		downloadSpeed : Float;
+		ping : Int;
 		wsConnect : Int;
 		wsDisconnect : Int;
 	};
@@ -106,6 +108,14 @@ module {
 				jobStatus = switch (Entity.getAttributeMapValueForKey(attributes, "jobStatus")) {
 					case (?(#text(v))) v;
 					case _ "";
+				};
+				downloadSpeed = switch (Entity.getAttributeMapValueForKey(attributes, "downloadSpeed")) {
+					case (?(#float(v))) v;
+					case _ 0.0;
+				};
+				ping = switch (Entity.getAttributeMapValueForKey(attributes, "ping")) {
+					case (?(#int(v))) v;
+					case _ 0;
 				};
 				wsConnect = switch (Entity.getAttributeMapValueForKey(attributes, "wsConnect")) {
 					case (?(#int(v))) v;
