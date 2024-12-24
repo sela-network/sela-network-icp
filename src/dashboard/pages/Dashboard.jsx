@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Container, Text, Row, Column, Icon } from '../component';
 import StackedChart from './charts/StackedChart';
 
-import { Button } from 'antd';
+import { Button, Alert } from 'antd';
 import Color from '../style/Color';
 
-const Dashboard = ({ handleMoreClick }) => {
+const Dashboard = ({ handleMoreClick, userData }) => {
+  const [showCopyAlert, setShowCopyAlert] = useState(false);
+
   const BalanceContainer = ({ title, value, flex }) => {
     return (
       <Container alignItems="center" spacing={8} flex={flex}>
@@ -111,7 +113,11 @@ const Dashboard = ({ handleMoreClick }) => {
           <Icon name="referral" style={{ width: 20, height: 20, flex: 1 }} />
           <Column spacing={4} flex={1}>
             <Text children="Refferals" size={14} color={Color.gray} />
-            <Text children="100,000" weight="semiBold" size={16} />
+            <Text
+              children={userData.totalReferral}
+              weight="semiBold"
+              size={16}
+            />
           </Column>
         </Row>
         <Button
@@ -138,6 +144,10 @@ const Dashboard = ({ handleMoreClick }) => {
             borderColor: Color.yellow,
             height: 52,
           }}
+          onClick={() => {
+            navigator.clipboard.writeText(userData.referralCode);
+            setShowCopyAlert(true);
+          }}
         >
           <Text
             children="Copy Referral Link"
@@ -146,6 +156,17 @@ const Dashboard = ({ handleMoreClick }) => {
             color={Color.yellow}
           />
         </Button>
+        {showCopyAlert && (
+          <Alert
+            message="Refferal Code Copied to Clipboard"
+            type="success"
+            showIcon
+            closable
+            afterClose={() => {
+              setShowCopyAlert(false);
+            }}
+          />
+        )}
       </Container>
     );
   };
@@ -182,11 +203,14 @@ const Dashboard = ({ handleMoreClick }) => {
           <Row>
             <BalanceContainer
               title="Total Balance"
-              value="100,000,000.00"
+              value={userData.balance}
               flex={2}
             />
             <BalanceContainer title="1 Epoch Earnings" value="100,000,000.00" />
-            <BalanceContainer title="Today's Earnings" value="100,000,000.00" />
+            <BalanceContainer
+              title="Today's Earnings"
+              value={userData.todaysEarnings}
+            />
           </Row>
           <ChartContainer />
         </Column>
