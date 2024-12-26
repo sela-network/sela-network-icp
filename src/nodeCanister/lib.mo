@@ -4,6 +4,7 @@ import Text "mo:base/Text";
 import Ed25519 "mo:ed25519";
 import Sock "canister:sock";
 import Canister "canister:webSocketCanister";
+import rpcCanister "canister:rpcCanister";
 import Debug "mo:base/Debug";
 import Decoder "mo:cbor/Decoder";
 import Http "mo:http-parser";
@@ -12,6 +13,7 @@ import JSON "mo:json/JSON";
 import Int "mo:base/Int";
 import Nat16 "mo:base/Nat16";
 import Nat "mo:base/Nat";
+import Principal "mo:base/Principal";
 import DatabaseOps "../nodeCanister/modules/database_ops";
 import HttpHandler "../nodeCanister/modules/http_handler";
 
@@ -19,9 +21,6 @@ actor {
 
     type HttpRequest = HttpHandler.HttpRequest;
     type HttpResponse = HttpHandler.HttpResponse;
-
-    var rpcCanisterIDURL = "a3shf-5eaaa-aaaaa-qaafa-cai.localhost:4943";
-    var rpcCanisterID = "a3shf-5eaaa-aaaaa-qaafa-cai";
 
     // Type definitions
     public type WebsocketMessage = {
@@ -193,28 +192,29 @@ actor {
     };
 
     public func requestAuth(client_id: Nat64) : async Bool {
-        //call RPC canister via http request
-        let url = "http://" # rpcCanisterIDURL # "/requestAuth";
-        let queryParams = [("clientId", Nat64.toText(client_id))];
+        
+        let rpcCanisterIdPrincipal = await rpcCanister.getRpcCanisterID();
+        let rpcCanisterID = Principal.toText(rpcCanisterIdPrincipal);
+        let rpcCanisterIDURL = rpcCanisterID # ".localhost:4943";
+        Debug.print("rpcCanisterID: " # rpcCanisterID);
+        
+        let url = "http://" # rpcCanisterIDURL # "/requestAuth" # "&requestMethod=requestAuth";
+        let headers = Http.Headers([("Authorization", Nat64.toText(client_id))]);
 
-        // Prepare the HTTP request (method GET, URL, headers)
         let request : Http.HttpRequest = {
             url = url;
             method = "GET";
-            headers = [];
+            headers = headers.original;
             body = "";
-            certificate_version = null;
-            max_response_bytes = null;
-            transform = null;
-            query_parameters = queryParams;
         };
 
         let ic : actor {
-            http_request : Http.HttpRequest -> async Http.HttpResponse;
+            http_request_update : Http.HttpRequest -> async Http.HttpResponse;
         } = actor (rpcCanisterID);
 
         try {
-            let response = await ic.http_request(request);
+            let response = await ic.http_request_update(request);
+            
             switch (Text.decodeUtf8(response.body)) {
                 case (?body) {
                     Debug.print("Response body: " # body);
@@ -229,12 +229,15 @@ actor {
             Debug.print("Error calling target canister: " # errorMessage);
             return false;
         };
-        return false;
     };
 
     public func responseAuth() : async Bool {
+        let rpcCanisterIdPrincipal = await rpcCanister.getRpcCanisterID();
+        let rpcCanisterID = Principal.toText(rpcCanisterIdPrincipal);
+        let rpcCanisterIDURL = rpcCanisterID # ".localhost:4943";
+        Debug.print("rpcCanisterID: " # rpcCanisterID);
         //call RPC canister via http request
-        let url = "http://" # rpcCanisterIDURL # "/responseAuth";
+        let url = "http://" # rpcCanisterIDURL # "/responseAuth" # "&requestMethod=responseAuth";
         let headers = Http.Headers([("Authorization", "success")]);
 
         // Prepare the HTTP request (method GET, URL, headers)
@@ -243,17 +246,14 @@ actor {
             method = "GET";
             headers = headers.original;
             body = "";
-            certificate_version = null;
-            max_response_bytes = null;
-            transform = null;
         };
 
         let ic : actor {
-            http_request : Http.HttpRequest -> async Http.HttpResponse;
+            http_request_update : Http.HttpRequest -> async Http.HttpResponse;
         } = actor (rpcCanisterID);
 
         try {
-            let response = await ic.http_request(request);
+            let response = await ic.http_request_update(request);
             
             // Check if the status code is 200 (OK)
             if (response.status_code == 200) {
@@ -388,6 +388,7 @@ actor {
 
         let checkAuth = await requestAuth(clientId);
         if (checkAuth){
+            Debug.print("requestAuth() success");
             // Verify the signature
             let clientKey = switch (await Sock.get_client_public_key(clientId)) {
                 case (?key) { key };

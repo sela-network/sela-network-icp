@@ -295,7 +295,7 @@ actor class WebSocket(dbCanisterId: Principal) {
         // Perform the database operation first
         let dbResponse = switch (msg_data.text) {
             case "PING" {
-                Debug.print("Client connecting - check job assignment");
+                Debug.print("Client connect open");
                 let clientIdInt : Int = Int.abs(Nat64.toNat(client_id));
                 await db.clientConnect(msg_data.user_principal_id, clientIdInt);
             };

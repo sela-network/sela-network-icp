@@ -13,6 +13,8 @@ import Array "mo:base/Array";
 import Nat = "mo:base/Nat";
 import JSON "mo:json/JSON";
 import Float "mo:base/Float";
+import Char "mo:base/Char";
+import Nat32 "mo:base/Nat32";
 
 import DatabaseOps "./modules/database_ops";
 import HttpHandler "./modules/http_handler";
@@ -239,7 +241,7 @@ actor {
                             switch (updatedClientResult) {
                                 case (#ok()) {
                                     let jsonResponse = "{" #
-                                    "\"status\": \"success\"," #
+                                    "\"status\": \"OK\"," #
                                     "\"message\": \"Job marked as completed successfully\"," #
                                     "\"jobId\": \"" # jobID # "\"," #
                                     "\"user_principal_id\": \"" # user_principal_id # "\"," #
@@ -664,104 +666,78 @@ actor {
                 case (?_clientEntity) {
                     Debug.print("Client found in DB with user_principal_id: " # user_principal_id);
 
+                    let downloadSpeedText = removeQuotes(extractValue(data, "downloadSpeed\":"));
+                    let pingText = removeQuotes(extractValue(data, "ping\":"));
+
+                    var downloadSpeed : Float = textToFloat(downloadSpeedText);
+                    var ping : Int = textToInt(pingText);
+
+                    Debug.print("downloadSpeedText: " # debug_show(downloadSpeedText));
+                    Debug.print("pingText: " # debug_show(pingText));
+
+                    Debug.print("downloadSpeed: " # debug_show(downloadSpeed));
+                    Debug.print("ping: " # Int.toText(ping));
+
+                    Debug.print("data: " # debug_show(data));
+
+                    // If you need a Nat
+                    let pingNat : Nat = Int.abs(ping);
+                    Debug.print("ping as Nat: " # Nat.toText(pingNat));
+
                     // Parse the JSON string
                     let parsedData = JSON.parse(data);
+                    Debug.print("Parsed Data: " # debug_show(parsedData));
 
-                    switch (parsedData) {
-                        case null {
-                            return #err("Failed to parse JSON data");
-                        };
-                        case (?parsed) {
-                            switch (parsed) {
-                                case (#Object(fields)) {
-                                    var downloadSpeed : ?Float = null;
-                                    var ping : ?Int = null;
+                    let updatedAttributes : [(Text, Entity.AttributeValue)] = [
+                        ("downloadSpeed", #float(downloadSpeed)),
+                        ("ping", #int(Int.abs(ping)))
+                    ];
 
-                                    for ((key, value) in fields.vals()) {
-                                        switch (key, value) {
-                                            case ("downloadSpeed", #Number(n)) {
-                                                downloadSpeed := ?Float.fromInt(n);
-                                            };
-                                            case ("ping", #Number(n)) {
-                                                ping := ?n;
-                                            };
-                                            case _ {};
-                                        };
-                                    };
-
-                                    if (downloadSpeed == null) {
-                                        return #err("downloadSpeed not found or invalid in JSON");
-                                    };
-                                    if (ping == null) {
-                                        return #err("ping not found or invalid in JSON");
-                                    };
-
-                                    // Log extracted values
-                                    // Log extracted values
-                                    switch (downloadSpeed) {
-                                        case (?speed) { Debug.print("Download Speed: " # Float.toText(speed)); };
-                                        case null { Debug.print("Download Speed: null"); };
-                                    };
-                                    switch (ping) {
-                                        case (?p) { Debug.print("Ping: " # Int.toText(p)); };
-                                        case null { Debug.print("Ping: null"); };
-                                    };
-
-                                    // Unwrap the optional values
-                                    let unwrappedSpeed = switch (downloadSpeed) {
-                                        case (?speed) { speed };
-                                        case null { 0.0 }; // Default value, though this case should never occur due to earlier checks
-                                    };
-                                    let unwrappedPing = switch (ping) {
-                                        case (?p) { p };
-                                        case null { 0 }; // Default value, though this case should never occur due to earlier checks
-                                    };
-
-                                    let updatedAttributes : [(Text, Entity.AttributeValue)] = [
-                                        ("downloadSpeed", #float(unwrappedSpeed)),
-                                        ("ping", #int(unwrappedPing))
-                                    ];
-
-                                    func updateAttributes(attributeMap : ?Entity.AttributeMap) : Entity.AttributeMap {
-                                        switch (attributeMap) {
-                                            case null {
-                                                Entity.createAttributeMapFromKVPairs(updatedAttributes);
-                                            };
-                                            case (?map) {
-                                                Entity.updateAttributeMapWithKVPairs(map, updatedAttributes);
-                                            };
-                                        };
-                                    };
-
-
-                                    let updateResult = switch (
-                                        CanDB.update(
-                                            clientDB,
-                                            {
-                                                pk = "clientTable";
-                                                sk = user_principal_id;
-                                                updateAttributeMapFunction = updateAttributes;
-                                            },
-                                        )
-                                    ) {
-                                        case null {
-                                            Debug.print("Failed to update client internet speed: " # user_principal_id);
-                                            #err("Failed to update client");
-                                        };
-                                        case (?_) {
-                                            Debug.print("Successfully updated internet speed for user_principal_id: " # user_principal_id);
-                                            #ok("Client internet speed updated successfully");
-                                        };
-                                    };
-
-                                    return updateResult;
-                                };
-                                case _ {
-                                    return #err("Parsed JSON is not an object");
-                                };
+                    func updateAttributes(attributeMap : ?Entity.AttributeMap) : Entity.AttributeMap {
+                        switch (attributeMap) {
+                            case null {
+                                Entity.createAttributeMapFromKVPairs(updatedAttributes);
+                            };
+                            case (?map) {
+                                Entity.updateAttributeMapWithKVPairs(map, updatedAttributes);
                             };
                         };
                     };
+
+
+                    let _updateResult = switch (
+                        CanDB.update(
+                            clientDB,
+                            {
+                                pk = "clientTable";
+                                sk = user_principal_id;
+                                updateAttributeMapFunction = updateAttributes;
+                            },
+                        )
+                    ) {
+                        case null {
+                            Debug.print("Failed to update client internet speed: " # user_principal_id);
+                            #err("Failed to update client");
+                        };
+                        case (?_) {
+                            Debug.print("Successfully updated internet speed for user_principal_id: " # user_principal_id);
+                            let jsonResponse = "{" #
+                                "\"message\": \"Client internet speed updated successfully\"," #
+                                "\"user_principal_id\": \"" # user_principal_id # "\"," #
+                                "\"state\": \"udated\"," #
+                                "\"Status\": OK" #
+                            "}";
+                            #ok(jsonResponse);
+                        };
+                    };
+
+                    let jsonResponse = "{" #
+                        "\"message\": \"Client internet speed updated successfully\"," #
+                        "\"user_principal_id\": \"" # user_principal_id # "\"," #
+                        "\"state\": \"udated\"," #
+                        "\"Status\": OK" #
+                    "}";
+                    #ok(jsonResponse);
                 };
             };
         } catch (error) {
@@ -770,6 +746,69 @@ actor {
         };
     };
 
+    func textToNumber(t : Text) : (Int, Int, Int) {
+        var intPart = 0;
+        var fracPart = 0;
+        var fracDigits = 0;
+        var isNegative = false;
+        var seenDot = false;
+
+        for (c in t.chars()) {
+            switch (c) {
+                case '-' { isNegative := true; };
+                case '.' { seenDot := true; };
+                case d {
+                    let digit = Char.toNat32(d) - 48; // ASCII '0' is 48
+                    if (seenDot) {
+                        fracPart := fracPart * 10 + Nat32.toNat(digit);
+                        fracDigits += 1;
+                    } else {
+                        intPart := intPart * 10 + Nat32.toNat(digit);
+                    };
+                };
+            };
+        };
+
+        let sign = if (isNegative) -1 else 1;
+        (sign * intPart, fracPart, fracDigits)
+    };
+
+    func textToFloat(t : Text) : Float {
+        let (intPart, fracPart, fracDigits) = textToNumber(t);
+        let fracValue = Float.fromInt(fracPart) / Float.pow(10, Float.fromInt(fracDigits));
+        Float.fromInt(intPart) + (if (intPart < 0) -fracValue else fracValue)
+    };
+
+    func textToInt(t : Text) : Int {
+        let (intPart, _, _) = textToNumber(t);
+        intPart
+    };
+    
+    func extractValue(text : Text, key : Text) : Text {
+        let iter = Text.split(text, #text key);
+        switch (iter.next()) {
+            case null { "" };
+            case (?_) {
+                switch (iter.next()) {
+                    case null { "" };
+                    case (?value) {
+                        let valueIter = Text.split(value, #text ",");
+                        switch (valueIter.next()) {
+                            case null { "" };
+                            case (?v) {
+                                // Remove quotation marks, closing brace, and trim whitespace
+                                Text.trim(Text.replace(v, #text "\"", ""), #char '}')
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+
+    func removeQuotes(text : Text) : Text {
+        Text.replace(text, #text "\"", "")
+    };
 
     private func unwrapJobEntity(entity : Entity.Entity) : ?JobStruct {
         DatabaseOps.unwrapJobEntity(entity)
@@ -778,7 +817,6 @@ actor {
     private func unwrapClientEntity(entity : Entity.Entity) : ?ClientStruct {
         DatabaseOps.unwrapClientEntity(entity)
     };
-
 
     public func clientConnect(user_principal_id : Text, client_id : Int) : async Result.Result<Text, Text> {
         var jsonResponse : Text = "";
@@ -798,69 +836,14 @@ actor {
                     switch (registerClient) {
                         case (#ok(_)) {
                             Debug.print("Client added to DB for user_principal_id: " # user_principal_id);
-                            // After client is created, try to assign a job
-                            let assignedJob = await assignJobToClient(user_principal_id, client_id);
-                            switch (assignedJob) {
-                                case (#ok(jobResponse)) {
-                                    // Parse the response to get jobId
-                                    let jobData = switch (Text.split(jobResponse, #text "\"jobId\": \"")) {
-                                        case (iter) {
-                                            switch (iter.next()) {
-                                                case null { null };
-                                                case (?_) {
-                                                    switch (iter.next()) {
-                                                        case null { null };
-                                                        case (?jobIdPart) {
-                                                            let jobId = Text.split(jobIdPart, #text "\"").next();
-                                                            jobId;
-                                                        };
-                                                    };
-                                                };
-                                            };
-                                        };
-                                    };
-                                    
-                                    switch (jobData) {
-                                        case (?jobId) {
-                                            // Get full job details
-                                            let job = switch (await getJobWithID(jobId)) {
-                                                case (#ok(jobDetails)) {
-                                                    // Create enhanced JSON response with full job details
-                                                    let jsonResponse = "{" #
-                                                        "\"status\": \"success\"," #
-                                                        "\"message\": \"Job assigned successfully\"," #
-                                                        "\"jobId\": \"" # jobId # "\"," #
-                                                        "\"user_principal_id\": \"" # user_principal_id # "\"," #
-                                                        "\"job\": {" #
-                                                            "\"id\": \"" # jobDetails.jobID # "\"," #
-                                                            "\"status\": \"" # jobDetails.state # "\"," #
-                                                            "\"type\": \"" # jobDetails.jobType # "\"," #
-                                                            "\"jobStatus\": \"" # jobDetails.state # "\"," #
-                                                            "\"created_at\": " # Int.toText(jobDetails.assignedAt) # "," #
-                                                            "\"updated_at\": " # Int.toText(jobDetails.completeAt) # "," #
-                                                            "\"data\": " # jobDetails.target #
-                                                        "}" #
-                                                    "}";
-                                                    #ok(jsonResponse);
-                                                };
-                                                case (#err(error)) {
-                                                    Debug.print("Job found but details not available: " # error);
-                                                    #err(createJsonResponse("error", "Job found but details not available", user_principal_id, "error"));
-                                                };
-                                            };
-                                            job;
-                                        };
-                                        case null {
-                                            Debug.print("Failed to parse job ID from response");
-                                            #err(createJsonResponse("error", "Failed to parse job ID from response", user_principal_id, "error"));
-                                        };
-                                    };
-                                };
-                                case (#err(error)) {
-                                    Debug.print("Client created but job assignment failed: " # error);
-                                    #err("Client created but job assignment failed: " # error);
-                                };
-                            };
+                            let jsonResponse = "{" #
+                                "\"message\": \"New client, Client ID updated in DB\"," #
+                                "\"user_principal_id\": \"" # user_principal_id # "\"," #
+                                "\"state\": \"waiting\"," #
+                                "\"status\": \"OK\"," #
+                                "\"jobAssigned\": false" #
+                            "}";
+                            #ok(jsonResponse);
                         };
                         case (#err(errorMessage)) {
                             Debug.print("Failed to create client: " # errorMessage);
@@ -870,120 +853,23 @@ actor {
                 };
                 case (?entity) {
                     //Client found, continue without changes
-                    let client : ClientStruct = {
-                        user_principal_id = entity.sk;
-                        jobID = switch (Entity.getAttributeMapValueForKey(entity.attributes, "jobID")) {
-                            case (?(#text(j))) j;
-                            case _ "";
-                        };
-                        client_id = switch (Entity.getAttributeMapValueForKey(entity.attributes, "client_id")) {
-                            case (?(#int(c))) c;
-                            case _ 0;
-                        };
-                        jobStatus = switch (Entity.getAttributeMapValueForKey(entity.attributes, "jobStatus")) {
-                            case (?(#text(j))) j;
-                            case _ "";
-                        };
-                        downloadSpeed = switch (Entity.getAttributeMapValueForKey(entity.attributes, "downloadSpeed")) {
-                            case (?(#float(j))) j;
-                            case _ 0.0;
-                        };
-                        ping = switch (Entity.getAttributeMapValueForKey(entity.attributes, "ping")) {
-                            case (?(#int(j))) j;
-                            case _ 0;
-                        };
-                        wsConnect = switch (Entity.getAttributeMapValueForKey(entity.attributes, "wsConnect")) {
-                            case (?(#int(t))) t;
-                            case _ 0;
-                        };
-                        wsDisconnect = switch (Entity.getAttributeMapValueForKey(entity.attributes, "wsDisconnect")) {
-                            case (?(#int(t))) t;
-                            case _ 0;
-                        };
-                    };
-
-                    if (client.jobStatus != "notWorking" and client.jobID != "") {
-                        Debug.print("Client is already working on a job: " # client.jobStatus);
-                        return #err("Client is already working on a job");
-                    };
-
                     Debug.print("Client found for user_principal_id: " # user_principal_id);
                     //update client_id
                     let updateClient = await updateClientID(user_principal_id, client_id);
                     switch (updateClient) {
                         case (#ok()) {
-                            let assignedJob = await assignJobToClient(user_principal_id, client_id);
-                            
-                            switch (assignedJob) {
-                                case (#ok(jobResponse)) {
-                                    // Parse the response to get jobId
-                                    let jobData = switch (Text.split(jobResponse, #text "\"jobId\": \"")) {
-                                        case (iter) {
-                                            switch (iter.next()) {
-                                                case null { null };
-                                                case (?_) {
-                                                    switch (iter.next()) {
-                                                        case null { null };
-                                                        case (?jobIdPart) {
-                                                            let jobId = Text.split(jobIdPart, #text "\"").next();
-                                                            jobId;
-                                                        };
-                                                    };
-                                                };
-                                            };
-                                        };
-                                    };
-                                    
-                                    switch (jobData) {
-                                        case (?jobId) {
-                                            // Get full job details
-                                            let job = switch (await getJobWithID(jobId)) {
-                                                case (#ok(jobDetails)) {
-                                                    // Create enhanced JSON response with full job details
-                                                    let jsonResponse = "{" #
-                                                        "\"status\": \"success\"," #
-                                                        "\"message\": \"Job assigned successfully\"," #
-                                                        "\"jobId\": \"" # jobId # "\"," #
-                                                        "\"user_principal_id\": \"" # user_principal_id # "\"," #
-                                                        "\"job\": {" #
-                                                            "\"id\": \"" # jobDetails.jobID # "\"," #
-                                                            "\"status\": \"" # jobDetails.state # "\"," #
-                                                            "\"type\": \"" # jobDetails.jobType # "\"," #
-                                                            "\"jobStatus\": \"" # jobDetails.state # "\"," #
-                                                            "\"created_at\": " # Int.toText(jobDetails.assignedAt) # "," #
-                                                            "\"updated_at\": " # Int.toText(jobDetails.completeAt) # "," #
-                                                            "\"data\": " # jobDetails.target #
-                                                        "}" #
-                                                    "}";
-                                                    #ok(jsonResponse);
-                                                };
-                                                case (#err(error)) {
-                                                    Debug.print("Job found but details not available: " # error);
-                                                    #err(createJsonResponse("error", "Job found but details not available", user_principal_id, "error"));
-                                                };
-                                            };
-                                            job;
-                                        };
-                                        case null {
-                                            Debug.print("Failed to parse job ID from response");
-                                            #err(createJsonResponse("error", "Failed to parse job ID from response", user_principal_id, "error"));
-                                        };
-                                    };
-                                };
-                                case (#err(error)) {
-                                    Debug.print("Failed to assign job to client: " # error);
-                                    return #err("Failed to assign job to client: " # error);
-                                };
-                            };
-                        };
-                        case (#err(_)) {
                             let jsonResponse = "{" #
-                                "\"message\": \"Client waiting for job\"," #
+                                "\"message\": \"Client ID updated in DB\"," #
                                 "\"user_principal_id\": \"" # user_principal_id # "\"," #
                                 "\"state\": \"waiting\"," #
+                                "\"status\": \"OK\"," #
                                 "\"jobAssigned\": false" #
                             "}";
                             #ok(jsonResponse);
+                        };
+                        case (#err(errorMessage)) {
+                            Debug.print("Failed to update clientID: " # errorMessage);
+                            #err(createJsonResponse("error", "Failed to update clientID", user_principal_id, "error"));
                         };
                     };
                 };
@@ -993,6 +879,221 @@ actor {
             #err("An unexpected error occurred: " # Error.message(error));
         };
     };
+
+
+    // public func clientConnect(user_principal_id : Text, client_id : Int) : async Result.Result<Text, Text> {
+    //     var jsonResponse : Text = "";
+
+    //     try {
+    //         // Validate the user_principal_id as a Principal
+    //         let _ = Principal.fromText(user_principal_id);
+
+    //         // Check if the client exists in the database
+    //         let existingClient = CanDB.get(clientDB, { pk = "clientTable"; sk = user_principal_id });
+
+    //         switch (existingClient) {
+    //             case null {
+    //                 // If client is not found, add the client to the DB
+    //                 Debug.print("Client not found for user_principal_id: " # user_principal_id);
+    //                 let registerClient = await addClientToDB(user_principal_id, client_id);
+    //                 switch (registerClient) {
+    //                     case (#ok(_)) {
+    //                         Debug.print("Client added to DB for user_principal_id: " # user_principal_id);
+    //                         // After client is created, try to assign a job
+    //                         let assignedJob = await assignJobToClient(user_principal_id, client_id);
+    //                         switch (assignedJob) {
+    //                             case (#ok(jobResponse)) {
+    //                                 // Parse the response to get jobId
+    //                                 let jobData = switch (Text.split(jobResponse, #text "\"jobId\": \"")) {
+    //                                     case (iter) {
+    //                                         switch (iter.next()) {
+    //                                             case null { null };
+    //                                             case (?_) {
+    //                                                 switch (iter.next()) {
+    //                                                     case null { null };
+    //                                                     case (?jobIdPart) {
+    //                                                         let jobId = Text.split(jobIdPart, #text "\"").next();
+    //                                                         jobId;
+    //                                                     };
+    //                                                 };
+    //                                             };
+    //                                         };
+    //                                     };
+    //                                 };
+                                    
+    //                                 switch (jobData) {
+    //                                     case (?jobId) {
+    //                                         // Get full job details
+    //                                         let job = switch (await getJobWithID(jobId)) {
+    //                                             case (#ok(jobDetails)) {
+    //                                                 // Create enhanced JSON response with full job details
+    //                                                 let jsonResponse = "{" #
+    //                                                     "\"status\": \"success\"," #
+    //                                                     "\"message\": \"Job assigned successfully\"," #
+    //                                                     "\"jobId\": \"" # jobId # "\"," #
+    //                                                     "\"user_principal_id\": \"" # user_principal_id # "\"," #
+    //                                                     "\"job\": {" #
+    //                                                         "\"id\": \"" # jobDetails.jobID # "\"," #
+    //                                                         "\"status\": \"" # jobDetails.state # "\"," #
+    //                                                         "\"type\": \"" # jobDetails.jobType # "\"," #
+    //                                                         "\"jobStatus\": \"" # jobDetails.state # "\"," #
+    //                                                         "\"created_at\": " # Int.toText(jobDetails.assignedAt) # "," #
+    //                                                         "\"updated_at\": " # Int.toText(jobDetails.completeAt) # "," #
+    //                                                         "\"data\": " # jobDetails.target #
+    //                                                     "}" #
+    //                                                 "}";
+    //                                                 #ok(jsonResponse);
+    //                                             };
+    //                                             case (#err(error)) {
+    //                                                 Debug.print("Job found but details not available: " # error);
+    //                                                 #err(createJsonResponse("error", "Job found but details not available", user_principal_id, "error"));
+    //                                             };
+    //                                         };
+    //                                         job;
+    //                                     };
+    //                                     case null {
+    //                                         Debug.print("Failed to parse job ID from response");
+    //                                         #err(createJsonResponse("error", "Failed to parse job ID from response", user_principal_id, "error"));
+    //                                     };
+    //                                 };
+    //                             };
+    //                             case (#err(error)) {
+    //                                 Debug.print("Client created but job assignment failed: " # error);
+    //                                 #err("Client created but job assignment failed: " # error);
+    //                             };
+    //                         };
+    //                     };
+    //                     case (#err(errorMessage)) {
+    //                         Debug.print("Failed to create client: " # errorMessage);
+    //                         #err(createJsonResponse("error", "Failed to create client", user_principal_id, "error"));
+    //                     };
+    //                 };
+    //             };
+    //             case (?entity) {
+    //                 //Client found, continue without changes
+    //                 let client : ClientStruct = {
+    //                     user_principal_id = entity.sk;
+    //                     jobID = switch (Entity.getAttributeMapValueForKey(entity.attributes, "jobID")) {
+    //                         case (?(#text(j))) j;
+    //                         case _ "";
+    //                     };
+    //                     client_id = switch (Entity.getAttributeMapValueForKey(entity.attributes, "client_id")) {
+    //                         case (?(#int(c))) c;
+    //                         case _ 0;
+    //                     };
+    //                     jobStatus = switch (Entity.getAttributeMapValueForKey(entity.attributes, "jobStatus")) {
+    //                         case (?(#text(j))) j;
+    //                         case _ "";
+    //                     };
+    //                     downloadSpeed = switch (Entity.getAttributeMapValueForKey(entity.attributes, "downloadSpeed")) {
+    //                         case (?(#float(j))) j;
+    //                         case _ 0.0;
+    //                     };
+    //                     ping = switch (Entity.getAttributeMapValueForKey(entity.attributes, "ping")) {
+    //                         case (?(#int(j))) j;
+    //                         case _ 0;
+    //                     };
+    //                     wsConnect = switch (Entity.getAttributeMapValueForKey(entity.attributes, "wsConnect")) {
+    //                         case (?(#int(t))) t;
+    //                         case _ 0;
+    //                     };
+    //                     wsDisconnect = switch (Entity.getAttributeMapValueForKey(entity.attributes, "wsDisconnect")) {
+    //                         case (?(#int(t))) t;
+    //                         case _ 0;
+    //                     };
+    //                 };
+
+    //                 if (client.jobStatus != "notWorking" and client.jobID != "") {
+    //                     Debug.print("Client is already working on a job: " # client.jobStatus);
+    //                     return #err("Client is already working on a job");
+    //                 };
+
+    //                 Debug.print("Client found for user_principal_id: " # user_principal_id);
+    //                 //update client_id
+    //                 let updateClient = await updateClientID(user_principal_id, client_id);
+    //                 switch (updateClient) {
+    //                     case (#ok()) {
+    //                         let assignedJob = await assignJobToClient(user_principal_id, client_id);
+                            
+    //                         switch (assignedJob) {
+    //                             case (#ok(jobResponse)) {
+    //                                 // Parse the response to get jobId
+    //                                 let jobData = switch (Text.split(jobResponse, #text "\"jobId\": \"")) {
+    //                                     case (iter) {
+    //                                         switch (iter.next()) {
+    //                                             case null { null };
+    //                                             case (?_) {
+    //                                                 switch (iter.next()) {
+    //                                                     case null { null };
+    //                                                     case (?jobIdPart) {
+    //                                                         let jobId = Text.split(jobIdPart, #text "\"").next();
+    //                                                         jobId;
+    //                                                     };
+    //                                                 };
+    //                                             };
+    //                                         };
+    //                                     };
+    //                                 };
+                                    
+    //                                 switch (jobData) {
+    //                                     case (?jobId) {
+    //                                         // Get full job details
+    //                                         let job = switch (await getJobWithID(jobId)) {
+    //                                             case (#ok(jobDetails)) {
+    //                                                 // Create enhanced JSON response with full job details
+    //                                                 let jsonResponse = "{" #
+    //                                                     "\"status\": \"success\"," #
+    //                                                     "\"message\": \"Job assigned successfully\"," #
+    //                                                     "\"jobId\": \"" # jobId # "\"," #
+    //                                                     "\"user_principal_id\": \"" # user_principal_id # "\"," #
+    //                                                     "\"job\": {" #
+    //                                                         "\"id\": \"" # jobDetails.jobID # "\"," #
+    //                                                         "\"status\": \"" # jobDetails.state # "\"," #
+    //                                                         "\"type\": \"" # jobDetails.jobType # "\"," #
+    //                                                         "\"jobStatus\": \"" # jobDetails.state # "\"," #
+    //                                                         "\"created_at\": " # Int.toText(jobDetails.assignedAt) # "," #
+    //                                                         "\"updated_at\": " # Int.toText(jobDetails.completeAt) # "," #
+    //                                                         "\"data\": " # jobDetails.target #
+    //                                                     "}" #
+    //                                                 "}";
+    //                                                 #ok(jsonResponse);
+    //                                             };
+    //                                             case (#err(error)) {
+    //                                                 Debug.print("Job found but details not available: " # error);
+    //                                                 #err(createJsonResponse("error", "Job found but details not available", user_principal_id, "error"));
+    //                                             };
+    //                                         };
+    //                                         job;
+    //                                     };
+    //                                     case null {
+    //                                         Debug.print("Failed to parse job ID from response");
+    //                                         #err(createJsonResponse("error", "Failed to parse job ID from response", user_principal_id, "error"));
+    //                                     };
+    //                                 };
+    //                             };
+    //                             case (#err(error)) {
+    //                                 Debug.print("Failed to assign job to client: " # error);
+    //                                 return #err("Failed to assign job to client: " # error);
+    //                             };
+    //                         };
+    //                     };
+    //                     case (#err(_)) {
+    //                         let jsonResponse = "{" #
+    //                             "\"message\": \"Client waiting for job\"," #
+    //                             "\"user_principal_id\": \"" # user_principal_id # "\"," #
+    //                             "\"state\": \"waiting\"," #
+    //                             "\"jobAssigned\": false" #
+    //                         "}";
+    //                         #ok(jsonResponse);
+    //                     };
+    //                 };
+    //             };
+    //         };
+    //     } catch (error) {
+    //         Debug.print("An unexpected error occurred: " # Error.message(error));
+    //         #err("An unexpected error occurred: " # Error.message(error));
+    //     };
+    // };
 
     public func clientDisconnect(client_id : Int) : async Text {
         Debug.print("Client disconnecting with ID: " # Int.toText(client_id));

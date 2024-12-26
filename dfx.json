@@ -3,6 +3,9 @@
     "rpcCanister": {
       "main": "src/rpcCanister/main.mo",
       "type": "motoko",
+      "environment": {
+        "RPC_CANISTER_ID": "process.env.RPC_CANISTER_ID"
+      },
       "http": {
         "port": 4943
       },

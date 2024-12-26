@@ -3,30 +3,32 @@ import Text "mo:base/Text";
 import Int "mo:base/Int";
 import JSON "mo:json/JSON";
 import Result "mo:base/Result";
-import Http "mo:http-parser";
-import DatabaseOps "../nodeCanister/modules/database_ops";
+import HTTP "../utils/Http";
+import Principal "mo:base/Principal";
+import Option "mo:base/Option";
 import HttpHandler "../nodeCanister/modules/http_handler";
 
-actor{
+shared(installer) actor class canister() = this {
 
-    type HttpRequest = HttpHandler.HttpRequest;
-    type HttpResponse = HttpHandler.HttpResponse;
+    type HttpRequest = HTTP.HttpRequest;
+    type HttpResponse = HTTP.HttpResponse;
+    type HeaderField = (Text, Text);
 
-    var sockCanisterIDURL = "by6od-j4aaa-aaaaa-qaadq-cai.localhost:4943";
-    var sockCanisterID = "by6od-j4aaa-aaaaa-qaadq-cai";
-
-    public shared func webSocketRequestForUserData(user_principal_id : Text) : async Result.Result<Text, Text> {
-        
+    public shared func webSocketRequestForUserData() : async Result.Result<Text, Text> {
         #ok("ok")
     };
 
-    public query func http_request() : async HttpResponse {
+    public func getRpcCanisterID() : async Principal {
+        return Principal.fromActor(this);
+    };
+
+    public query func http_request(_request : HttpRequest) : async HttpResponse {
         return {
-            status_code = 200;
-            headers = [("Content-Type", "text/plain")];
-            body = Text.encodeUtf8("This is a query response");
-            streaming_strategy = null;
-            upgrade = ?true; // This indicates that the request should be upgraded to an update call
+        status_code = 200;
+        headers = [("Content-Type", "text/plain")];
+        body = Text.encodeUtf8("This is a query response");
+        streaming_strategy = null;
+        upgrade = ?true; // This indicates that the request should be upgraded to an update call
         };
     };
 
@@ -41,44 +43,66 @@ actor{
         Debug.print("body: " # debug_show (body));
         Debug.print("headers: " # debug_show (headers));
 
-        switch (method, path) {
-            case ("GET", "/ping") {
-                let jsonBody = "{" #
-                    "\"status\": \"OK\"," #
-                "}";
-                return {
-                  status_code = 200;
-                  headers = [("Content-Type", "application/json")];
-                  body = Text.encodeUtf8(jsonBody);
-                  streaming_strategy = null;
-                  upgrade = null;
-                };
+        // Extract the base path and query parameters
+        let parts = Text.split(path, #text "&");
+        let basePath = Option.get(parts.next(), "/");
+        let queryParams = Option.get(parts.next(), "");
+
+        // Check if the query parameter contains "requestMethod=requestAuth"
+        let isRequestAuth = Text.contains(queryParams, #text "requestMethod=requestAuth");
+        let isResponseAuth = Text.contains(queryParams, #text "requestMethod=responseAuth");
+
+        Debug.print("isRequestAuth: " # debug_show (isRequestAuth));
+        Debug.print("queryParams: " # debug_show (queryParams));
+        Debug.print("basePath: " # debug_show (basePath));
+
+
+        switch (method, path, isRequestAuth, isResponseAuth) {
+            case ("GET", "/ping", _, _) {
+                return handlePing();
             };
 
-            case ("GET", "/requestAuth") {                
-                let jsonBody = "{" #
-                    "\"status\": \"OK\"," #
-                "}";
-                return {
-                  status_code = 200;
-                  headers = [("Content-Type", "application/json")];
-                  body = Text.encodeUtf8(jsonBody);
-                  streaming_strategy = null;
-                  upgrade = null;
-                };
+            case ("GET", "/requestAuth", _, _) {    
+                return handleRequestAuth();
             };
 
-            case ("GET", "/responseAuth") {       
-                let authHeader = getHeader(headers, "authorization");
+            case ("GET", "/responseAuth", _, _) {  
+                let authHeader = getHeader(headers, "authorization");  
+                return handleResponseAuth(Option.get(authHeader, ""));
+            };
+            case ("GET", _, true, _) {   
+                Debug.print("Inside requestAuth API");
+                return handleRequestAuth();
+            };
+
+            case ("GET", _, _, true) {   
+                Debug.print("Inside responseAuth API");
+                let authHeader = getHeader(headers, "Authorization");
                 switch (authHeader) {
-                    case (?value) {
-                        if (value == "success") {
+                    case null {
+                        Debug.print("Missing Authorization header ");
+                        return badRequest("Missing Authorization header");
+                    };
+                    case (?auth) {
+                        if (auth == "success") {
                             let jsonBody = "{" #
                                 "\"status\": \"OK\"," #
                                 "\"message\": \"Authorization successful\"" #
                             "}";
                             return {
                                 status_code = 200;
+                                headers = [("Content-Type", "application/json")];
+                                body = Text.encodeUtf8(jsonBody);
+                                streaming_strategy = null;
+                                upgrade = null;
+                            };
+                        } else if (auth == "") {
+                            let jsonBody = "{" #
+                                "\"status\": \"Bad Request\"," #
+                                "\"message\": \"Empty authorization header\"" #
+                            "}";
+                            return {
+                                status_code = 400;
                                 headers = [("Content-Type", "application/json")];
                                 body = Text.encodeUtf8(jsonBody);
                                 streaming_strategy = null;
@@ -96,26 +120,12 @@ actor{
                                 streaming_strategy = null;
                                 upgrade = null;
                             };
-                        }
-                    };
-                    case null {
-                        let jsonBody = "{" #
-                            "\"status\": \"Bad Request\"," #
-                            "\"message\": \"Missing authorization header\"" #
-                        "}";
-                        return {
-                            status_code = 400;
-                            headers = [("Content-Type", "application/json")];
-                            body = Text.encodeUtf8(jsonBody);
-                            streaming_strategy = null;
-                            upgrade = null;
                         };
                     };
                 };
             };
-
             
-            case ("POST", "/requestScrape") {
+            case ("POST", "/requestScrape", _, _) {
                 let jsonBody = "{" #
                     "\"status\": \"OK\"," #
                     "\"message\": \"ok\"" #
@@ -189,8 +199,79 @@ actor{
                 //     };
                 // };
              };
-            case _ {
-                return notFound();
+             case (_, _, _, _) {
+                return {
+                    status_code = 404;
+                    headers = [("Content-Type", "text/plain")];
+                    body = Text.encodeUtf8("Not Found");
+                    streaming_strategy = null;
+                    upgrade = null;
+                };
+            };
+        };
+    };
+
+    func handlePing() : HttpResponse {
+        let jsonBody = "{\"status\": \"OK\"}";
+        return {
+            status_code = 200;
+            headers = [("Content-Type", "application/json")];
+            body = Text.encodeUtf8(jsonBody);
+            streaming_strategy = null;
+            upgrade = null;
+        };
+    };
+
+    func handleRequestAuth() : HttpResponse {
+        let jsonBody = "{\"status\": \"RequestAuth OK\"}";
+        return {
+            status_code = 200;
+            headers = [("Content-Type", "application/json")];
+            body = Text.encodeUtf8(jsonBody);
+            streaming_strategy = null;
+            upgrade = null;
+        };
+    };
+
+    func handleResponseAuth(authHeader: Text) : HttpResponse {
+        Debug.print("Inside responseAuth API: ");   
+        Debug.print("authHeader: " # debug_show (authHeader));
+        
+        if (authHeader == "success") {
+            let jsonBody = "{" #
+                "\"status\": \"OK\"," #
+                "\"message\": \"Authorization successful\"" #
+            "}";
+            return {
+                status_code = 200;
+                headers = [("Content-Type", "application/json")];
+                body = Text.encodeUtf8(jsonBody);
+                streaming_strategy = null;
+                upgrade = null;
+            };
+        } else if (authHeader == "") {
+            let jsonBody = "{" #
+                "\"status\": \"Bad Request\"," #
+                "\"message\": \"Missing authorization header\"" #
+            "}";
+            return {
+                status_code = 400;
+                headers = [("Content-Type", "application/json")];
+                body = Text.encodeUtf8(jsonBody);
+                streaming_strategy = null;
+                upgrade = null;
+            };
+        } else {
+            let jsonBody = "{" #
+                "\"status\": \"Unauthorized\"," #
+                "\"message\": \"Invalid authorization\"" #
+            "}";
+            return {
+                status_code = 401;
+                headers = [("Content-Type", "application/json")];
+                body = Text.encodeUtf8(jsonBody);
+                streaming_strategy = null;
+                upgrade = null;
             };
         };
     };
@@ -205,7 +286,7 @@ actor{
     };
 
     // Helper function to get header value
-    func getHeader(headers : [(Text, Text)], name : Text) : ?Text {
+    func getHeader(headers: [HeaderField], name: Text) : ?Text {
         HttpHandler.getHeader(headers, name)
     };
 
