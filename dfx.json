@@ -89,7 +89,7 @@
       "frontend": {}
     },
     "dashboard": {
-      "dependencies": ["main", "internet_identity"],
+      "dependencies": ["main", "internetIdentity"],
       "frontend": {
         "entrypoint": "src/dashboard/index.html"
       },
