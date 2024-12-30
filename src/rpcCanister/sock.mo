@@ -3,6 +3,7 @@ import TrieMap "mo:base/TrieMap";
 import Time "mo:base/Time";
 import Blob "mo:base/Blob";
 import Nat8 "mo:base/Nat8";
+import Nat16 "mo:base/Nat16";
 import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
 import Text "mo:base/Text";
@@ -14,17 +15,21 @@ import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
 import Int "mo:base/Int";
 import SHA256 "mo:sha2/SHA256";
+import HttpHandler "../common/http_handler";
+import utils "../common/utils";
+import Http "mo:http-parser";
 import Encoder "mo:cbor/Encoder";
 import Decoder "mo:cbor/Decoder";
 import Types "mo:cbor/Types";
+import Error "mo:base/Error";
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
-import DBTypes "./types/types";
+import nodeCanister "canister:nodeCanister";
 
-actor class WebSocket(dbCanisterId: Principal) {
+actor class WebSocket() {
 
-    //deploy websocket:  dfx deploy websocket --argument '(principal "'$(dfx canister id db)'")'
-    let db : DBTypes.DBInterface = actor(Principal.toText(dbCanisterId));
+    type HttpRequest = HttpHandler.HttpRequest;
+    type HttpResponse = HttpHandler.HttpResponse;
 
     let LABEL_WEBSOCKET : [Nat8] = [119, 101, 98, 115, 111, 99, 107, 101, 116]; // "websocket" in ASCII
     let MSG_TIMEOUT : Nat64 = 5 * 60 * 1000000000; // 5 minutes in nanoseconds
@@ -167,22 +172,11 @@ actor class WebSocket(dbCanisterId: Principal) {
     };
 
     public func delete_client(clientId : Nat64) : async () {
-        // Convert Nat64 to Int for db call
-        let clientIdInt : Int = Int.abs(Nat64.toNat(clientId));
-        
-        let removeClient = await db.clientDisconnect(clientIdInt);     
-        
-        // Handle text response from db
-        if (Text.contains(removeClient, #text "success")) {
-            Debug.print("Client disconnected successfully");
-            clientCallerMap.delete(clientId);
-            clientPublicKeyMap.delete(clientId);
-            clientGatewayMap.delete(clientId);
-            clientMessageNumMap.delete(clientId);
-            clientIncomingNumMap.delete(clientId);
-        } else {
-            Debug.print("Error deleting client: " # removeClient);
-        };
+        clientCallerMap.delete(clientId);
+        clientPublicKeyMap.delete(clientId);
+        clientGatewayMap.delete(clientId);
+        clientMessageNumMap.delete(clientId);
+        clientIncomingNumMap.delete(clientId);
     };
 
    public shared(msg) func get_cert_messages(nonce : Nat64) : async CertMessages {
@@ -286,8 +280,60 @@ actor class WebSocket(dbCanisterId: Principal) {
         CERT_TREE.delete(messageInfo.key);
     };
 
-    public shared func checkAuth(user_principal_id : Text) : async Result.Result<Text, Text>{
-        return await db.clientAuthorization(user_principal_id);
+    public func requestAuth(user_principal_id: Text) : async Bool {
+        
+        let nodeCanisterIdPrincipal = await nodeCanister.getNodeCanisterID();
+        let nodeCanisterID = Principal.toText(nodeCanisterIdPrincipal);
+        let nodeCanisterIDURL = nodeCanisterID # ".localhost:4943";
+        Debug.print("nodeCanisterID: " # nodeCanisterID);
+        
+        let url = "http://" # nodeCanisterIDURL # "/requestAuth" # "&requestMethod=requestAuth";
+        let headers = Http.Headers([("Authorization", user_principal_id)]);
+
+        let request : Http.HttpRequest = {
+            url = url;
+            method = "GET";
+            headers = headers.original;
+            body = "";
+        };
+
+        let ic : actor {
+            http_request_update : Http.HttpRequest -> async Http.HttpResponse;
+        } = actor (nodeCanisterID);
+
+        try {
+            let response = await ic.http_request_update(request);
+            
+            if (response.status_code == 200) {
+                let authStatus = getHeader(response.headers, "X-Auth-Status");
+                switch (authStatus) {
+                    case (?status) {
+                        if (status == "OK") {
+                            Debug.print("Authentication successful");
+                            return true;
+                        } else {
+                            Debug.print("Authentication failed: Unexpected status");
+                            return false;
+                        };
+                    };
+                    case null {
+                        Debug.print("Authentication failed: Missing status header");
+                        return false;
+                    };
+                };
+            } else {
+                Debug.print("Request failed with status code: " # Nat16.toText(response.status_code));
+                return false;
+            };
+        } catch (error) {
+            let errorMessage = Error.message(error);
+            Debug.print("Error calling target canister: " # errorMessage);
+            return false;
+        };
+    };
+
+    func getHeader(headers : [(Text, Text)], name : Text) : ?Text {
+        HttpHandler.getHeader(headers, name)
     };
 
     public func send_message_from_canister(client_id : Nat64, msg : Blob, msg_data : AppMessage) : async Result.Result<Text, Text> {
@@ -296,35 +342,38 @@ actor class WebSocket(dbCanisterId: Principal) {
         Debug.print("client_id: " # debug_show(client_id));
         Debug.print("msg_data: " # debug_show(msg_data));
 
-        // Perform the database operation first
+        //check for authorization
+        let checkAuth = await requestAuth(msg_data.user_principal_id);
+        if (checkAuth){
+            Debug.print("requestAuth() success");
+        }else{
+            Debug.print("Request authentication failed");
+            return #err("Request authentication failed: " # msg_data.user_principal_id);
+        };
+
+        let responseMessage = "";
+
+        // Check the operation first
         let dbResponse = switch (msg_data.text) {
             case "PING" {
                 Debug.print("Client connect open");
-                let clientIdInt : Int = Int.abs(Nat64.toNat(client_id));
-                await db.clientConnect(msg_data.user_principal_id, clientIdInt);
-            };
-            case "INTERNET_SPEED_TEST" {
-                Debug.print("Client sending message - update internet speed");
-                let clientIdInt : Int = Int.abs(Nat64.toNat(client_id));
-                await db.updateClientInternetSpeed(msg_data.user_principal_id, msg_data.data);
+                let responseMessage = "{" #
+                    "\"message\": \"Client connect open\"," #
+                    "\"user_principal_id\": \"" # msg_data.user_principal_id # "\"," #
+                    "\"state\": \"Connected\"," #
+                    "\"status\": \"OK\"," #
+                "}";
             };
             case "message" {
                 Debug.print("Client sending message - update job status");
-                let clientIdInt : Int = Int.abs(Nat64.toNat(client_id));
-                await db.updateJobCompleted(msg_data.user_principal_id, clientIdInt, msg_data.data);
+                let responseMessage = "{" #
+                    "\"message\": \"Client send message\"," #
+                    "\"state\": \"Connected\"," #
+                    "\"status\": \"OK\"," #
+                "}";
             };
             case _ {
                 return #err("Unsupported message type: " # msg_data.text);
-            };
-        };
-
-        Debug.print("dbResponse: " # debug_show(dbResponse));
-
-        // Handle the Result type properly
-        let responseMessage = switch (dbResponse) {
-            case (#ok(response)) { response };
-            case (#err(error)) {
-                error
             };
         };
 

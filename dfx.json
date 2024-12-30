@@ -1,5 +1,96 @@
 {
   "canisters": {
+    "nodeCanisterSock": {
+      "main": "src/nodeCanister/sock.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/nodeCanisterSock",
+        "node_compatibility": true
+      }
+    },
+    "nodeCanisterWebSocketCanister": {
+      "main": "src/nodeCanister/canister.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/nodeCanisterWebSocketCanister",
+        "node_compatibility": true
+      }
+    },
+    "nodeCanisterLib": {
+      "main": "src/nodeCanister/lib.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/nodeCanisterLib",
+        "node_compatibility": true
+      }
+    },
+    "nodeCanisterDB": {
+      "main": "src/nodeCanister/db.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/nodeCanisterDB",
+        "node_compatibility": true
+      }
+    },
+    "nodeCanister": {
+      "main": "src/nodeCanister/main.mo",
+      "type": "motoko",
+      "environment": {
+        "NODE_CANISTER_ID": "process.env.NODE_CANISTER_ID"
+      },
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/nodeCanister",
+        "node_compatibility": true
+      }
+    },
+    "rpcCanisterSock": {
+      "main": "src/rpcCanister/sock.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/rpcCanisterSock",
+        "node_compatibility": true
+      }
+    },
+    "rpcCanisterWebSocketCanister": {
+      "main": "src/rpcCanister/canister.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/rpcCanisterWebSocketCanister",
+        "node_compatibility": true
+      }
+    },
+    "rpcCanisterLib": {
+      "main": "src/rpcCanister/lib.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/rpcCanisterLib",
+        "node_compatibility": true
+      }
+    },
     "rpcCanister": {
       "main": "src/rpcCanister/main.mo",
       "type": "motoko",
@@ -14,72 +105,6 @@
         "node_compatibility": true
       }
     },
-    "backend": {
-      "main": "src/backend/main.mo",
-      "type": "motoko",
-      "http": {
-        "port": 4943
-      },
-      "declarations": {
-        "output": "src/declarations/backend",
-        "node_compatibility": true
-      }
-    },
-    "main": {
-      "main": "src/nodeCanister/main.mo",
-      "type": "motoko",
-      "http": {
-        "port": 4943
-      },
-      "declarations": {
-        "output": "src/declarations/main",
-        "node_compatibility": true
-      }
-    },
-    "sock": {
-      "main": "src/nodeCanister/sock.mo",
-      "type": "motoko",
-      "http": {
-        "port": 4943
-      },
-      "declarations": {
-        "output": "src/declarations/sock",
-        "node_compatibility": true
-      }
-    },
-    "webSocketCanister": {
-      "main": "src/nodeCanister/canister.mo",
-      "type": "motoko",
-      "http": {
-        "port": 4943
-      },
-      "declarations": {
-        "output": "src/declarations/canister",
-        "node_compatibility": true
-      }
-    },
-    "lib": {
-      "main": "src/nodeCanister/lib.mo",
-      "type": "motoko",
-      "http": {
-        "port": 4943
-      },
-      "declarations": {
-        "output": "src/declarations/lib",
-        "node_compatibility": true
-      }
-    },
-    "db": {
-      "main": "src/nodeCanister/db.mo",
-      "type": "motoko",
-      "http": {
-        "port": 4943
-      },
-      "declarations": {
-        "output": "src/declarations/db",
-        "node_compatibility": true
-      }
-    },
     "internetIdentity": {
       "type": "custom",
       "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",
@@ -90,6 +115,17 @@
         }
       },
       "frontend": {}
+    },
+    "main": {
+      "main": "src/backend/main.mo",
+      "type": "motoko",
+      "http": {
+        "port": 4943
+      },
+      "declarations": {
+        "output": "src/declarations/main",
+        "node_compatibility": true
+      }
     },
     "dashboard": {
       "dependencies": ["main", "internetIdentity"],

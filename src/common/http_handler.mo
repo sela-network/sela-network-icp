@@ -1,5 +1,5 @@
 import Text "mo:base/Text";
-import HTTP "../../utils/Http";
+import HTTP "./Http";
 
 module {
 	public type HttpRequest = HTTP.HttpRequest;

@@ -2,10 +2,17 @@ import Blob "mo:base/Blob";
 import Nat64 "mo:base/Nat64";
 import Text "mo:base/Text";
 import Ed25519 "mo:ed25519";
-import Sock "canister:nodeCanisterSock";
-import Canister "canister:nodeCanisterWebSocketCanister";
+import Sock "canister:rpcCanisterSock";
+import Canister "canister:rpcCanisterWebSocketCanister";
 import Debug "mo:base/Debug";
 import Decoder "mo:cbor/Decoder";
+import Http "mo:http-parser";
+import Error "mo:base/Error";
+import JSON "mo:json/JSON";
+import Int "mo:base/Int";
+import Nat16 "mo:base/Nat16";
+import Nat "mo:base/Nat";
+import Principal "mo:base/Principal";
 import HttpHandler "../common/http_handler";
 
 actor {
@@ -270,10 +277,8 @@ actor {
                 "}";
             };
         };
-
         let clientId = content.client_id;
 
-        // Verify the signature
         let clientKey = switch (await Sock.get_client_public_key(clientId)) {
             case (?key) { key };
             case null { 
@@ -302,7 +307,7 @@ actor {
                     client_id = content.client_id;
                     message = content.message;
                 };
-
+                
                 let canisterResponse = await Canister.ws_on_message(adjustedContent);
                 switch (canisterResponse) {
                     case (#ok(jsonResponse)) {

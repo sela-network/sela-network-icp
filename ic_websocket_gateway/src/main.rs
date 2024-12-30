@@ -300,7 +300,6 @@ impl ezsockets::ServerExt for GatewayServer {
         );
         println!("Session created.");
         println!("Session ID: {}", id);
-        println!("Session: {:?}", session);
 
         Ok(session)
     }

@@ -14,7 +14,7 @@
     "build": "vite build src/dashboard --config vite.config.react.js",
     "start": "vite src/dashboard --config vite.config.react.js",
     "ic_start": "NODE_ENV=development NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 node src/scripts/script.mjs",
-    "generate": "dfx generate backend"
+    "generate": "dfx generate nodeCanister"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",

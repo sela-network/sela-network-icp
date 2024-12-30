@@ -2,7 +2,7 @@ import Blob "mo:base/Blob";
 import Text "mo:base/Text";
 import Nat64 "mo:base/Nat64";
 import Debug "mo:base/Debug";
-import WebSocket "canister:nodeCanisterSock";
+import WebSocket "canister:rpcCanisterSock";
 import Decoder "mo:cbor/Decoder";
 import Types "mo:cbor/Types";
 import Encoder "mo:cbor/Encoder";

@@ -3,7 +3,6 @@ import Nat8 = "mo:base/Nat8";
 import Random = "mo:base/Random";
 import Blob "mo:base/Blob";
 import Text "mo:base/Text";
-import Array "mo:base/Array";
 import Iter "mo:base/Iter";
 
 module {
@@ -37,4 +36,28 @@ module {
       padded
     }
   };
+
+  public func findSubstring(text : Text, pattern : Text) : ?Nat {
+    let textIter = text.chars();
+    let patternIter = pattern.chars();
+    var index : Nat = 0;
+    
+    label search loop {
+        let startIndex = index;
+        for (patternChar in patternIter) {
+            switch (textIter.next()) {
+                case (?textChar) {
+                    if (textChar != patternChar) {
+                        index += 1;
+                        continue search;
+                    };
+                };
+                case (null) return null;
+            };
+        };
+        return ?startIndex;
+    };
+    
+    null
+};
 };

@@ -1,6 +1,6 @@
 import Text "mo:base/Text";
 import Result "mo:base/Result";
-import HTTP "../../utils/Http";
+import HTTP "../../common/Http";
 
 module {
 	public type HttpRequest = HTTP.HttpRequest;
@@ -58,5 +58,6 @@ module {
         clientDisconnect : shared (Int) -> async Text;
         updateJobCompleted : shared (Text, Int, Text) -> async Result.Result<Text, Text>;
         updateClientInternetSpeed : shared (Text, Text) -> async Result.Result<Text, Text>;
+        clientAuthorization : shared (Text) -> async Result.Result<Text, Text>;
     };
 }

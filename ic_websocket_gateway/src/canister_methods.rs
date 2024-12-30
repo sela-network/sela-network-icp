@@ -72,6 +72,8 @@ pub async fn ws_get_client_key(
         .unwrap();
 
     println!(" ws_get_client_key res: {:?}", res);  
+    println!(" client_id: {:?}", client_id);  
+    println!(" canister_id: {:?}", canister_id);  
 
     PublicKey::from_slice(&Decode!(&res, Vec<u8>).map_err(|e| e.to_string()).unwrap()).unwrap()
 }
@@ -130,8 +132,6 @@ pub async fn ws_get_messages(agent: &Agent, canister_id: &Principal, nonce: u64)
         .call_and_wait()
         .await
         .unwrap();
-
-    println!(" ws_get_messages res: {:?}", res);
 
     Decode!(&res, CertMessages)
         .map_err(|e| e.to_string())

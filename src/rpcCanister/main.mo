@@ -3,10 +3,10 @@ import Text "mo:base/Text";
 import Int "mo:base/Int";
 import JSON "mo:json/JSON";
 import Result "mo:base/Result";
-import HTTP "../utils/Http";
+import HTTP "../common/Http";
 import Principal "mo:base/Principal";
 import Option "mo:base/Option";
-import HttpHandler "../nodeCanister/modules/http_handler";
+import HttpHandler "../common/http_handler";
 
 shared(installer) actor class canister() = this {
 
@@ -50,82 +50,17 @@ shared(installer) actor class canister() = this {
 
         // Check if the query parameter contains "requestMethod=requestAuth"
         let isRequestAuth = Text.contains(queryParams, #text "requestMethod=requestAuth");
-        let isResponseAuth = Text.contains(queryParams, #text "requestMethod=responseAuth");
 
         Debug.print("isRequestAuth: " # debug_show (isRequestAuth));
         Debug.print("queryParams: " # debug_show (queryParams));
         Debug.print("basePath: " # debug_show (basePath));
 
-
-        switch (method, path, isRequestAuth, isResponseAuth) {
-            case ("GET", "/ping", _, _) {
+        switch (method, path) {
+            case ("GET", "/ping") {
                 return handlePing();
             };
-
-            case ("GET", "/requestAuth", _, _) {    
-                return handleRequestAuth();
-            };
-
-            case ("GET", "/responseAuth", _, _) {  
-                let authHeader = getHeader(headers, "authorization");  
-                return handleResponseAuth(Option.get(authHeader, ""));
-            };
-            case ("GET", _, true, _) {   
-                Debug.print("Inside requestAuth API");
-                return handleRequestAuth();
-            };
-
-            case ("GET", _, _, true) {   
-                Debug.print("Inside responseAuth API");
-                let authHeader = getHeader(headers, "Authorization");
-                switch (authHeader) {
-                    case null {
-                        Debug.print("Missing Authorization header ");
-                        return badRequest("Missing Authorization header");
-                    };
-                    case (?auth) {
-                        if (auth == "success") {
-                            let jsonBody = "{" #
-                                "\"status\": \"OK\"," #
-                                "\"message\": \"Authorization successful\"" #
-                            "}";
-                            return {
-                                status_code = 200;
-                                headers = [("Content-Type", "application/json")];
-                                body = Text.encodeUtf8(jsonBody);
-                                streaming_strategy = null;
-                                upgrade = null;
-                            };
-                        } else if (auth == "") {
-                            let jsonBody = "{" #
-                                "\"status\": \"Bad Request\"," #
-                                "\"message\": \"Empty authorization header\"" #
-                            "}";
-                            return {
-                                status_code = 400;
-                                headers = [("Content-Type", "application/json")];
-                                body = Text.encodeUtf8(jsonBody);
-                                streaming_strategy = null;
-                                upgrade = null;
-                            };
-                        } else {
-                            let jsonBody = "{" #
-                                "\"status\": \"Unauthorized\"," #
-                                "\"message\": \"Invalid authorization\"" #
-                            "}";
-                            return {
-                                status_code = 401;
-                                headers = [("Content-Type", "application/json")];
-                                body = Text.encodeUtf8(jsonBody);
-                                streaming_strategy = null;
-                                upgrade = null;
-                            };
-                        };
-                    };
-                };
-            };
             
-            case ("POST", "/requestScrape", _, _) {
+            case ("POST", "/requestScrape") {
                 let jsonBody = "{" #
                     "\"status\": \"OK\"," #
                     "\"message\": \"ok\"" #
@@ -199,7 +134,7 @@ shared(installer) actor class canister() = this {
                 //     };
                 // };
              };
-             case (_, _, _, _) {
+             case _ {
                 return {
                     status_code = 404;
                     headers = [("Content-Type", "text/plain")];

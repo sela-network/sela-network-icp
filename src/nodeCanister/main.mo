@@ -4,15 +4,19 @@ import Debug "mo:base/Debug";
 import Result "mo:base/Result";
 import CanDB "mo:candb/CanDB";
 import Error "mo:base/Error";
-import HTTP "../utils/Http";
 import Entity "mo:candb/Entity";
 import Float "mo:base/Float";
-import Random "../utils/Random";
+import Option "mo:base/Option";
+import DBTypes "./types/types";
+import HTTP "../common/Http";
+import Random "../common/utils";
 
-actor Main {
+shared(installer) actor class canister(dbCanisterId: Principal) = this {
 
   type HttpRequest = HTTP.HttpRequest;
   type HttpResponse = HTTP.HttpResponse;
+
+  let db : DBTypes.DBInterface = actor(Principal.toText(dbCanisterId));
 
   type UserData = {
     principalID : Text;
@@ -56,6 +60,10 @@ actor Main {
     scalingOptions = scalingOptions;
     btreeOrder = null;
   });
+
+  public func getNodeCanisterID() : async Principal {
+        return Principal.fromActor(this);
+    };
 
   private func createUserEntity(principalID : Text, balance : Float, todaysEarnings : Float, referralCode : Text, totalReferral : Float) : {
     pk : Text;
@@ -202,6 +210,12 @@ actor Main {
     };
   };
 
+  public func handleRequestAuth(user_principal_id : Text) : async Result.Result<Text, Text> {
+    //check in DB if prinicpal ID is present
+    Debug.print("Inside handleRequestAuth");
+    return await db.clientAuthorization(user_principal_id);
+  };
+
   public query func http_request(_request : HttpRequest) : async HttpResponse {
     return {
       status_code = 200;
@@ -216,13 +230,27 @@ actor Main {
     let path = req.url;
     let method = req.method;
     let headers = req.headers;
+    let body = req.body;
 
     Debug.print("path: " # debug_show (path));
     Debug.print("method: " # debug_show (method));
+    Debug.print("body: " # debug_show (body));
     Debug.print("headers: " # debug_show (headers));
 
-    switch (method, path) {
-      case ("GET", "/getUserData") {
+    // Extract the base path and query parameters
+    let parts = Text.split(path, #text "&");
+    let basePath = Option.get(parts.next(), "/");
+    let queryParams = Option.get(parts.next(), "");
+
+    // Check if the query parameter contains "requestMethod=requestAuth"
+    let isRequestAuth = Text.contains(queryParams, #text "requestMethod=requestAuth");
+
+    Debug.print("isRequestAuth: " # debug_show (isRequestAuth));
+    Debug.print("queryParams: " # debug_show (queryParams));
+    Debug.print("basePath: " # debug_show (basePath));
+
+    switch (method, path, isRequestAuth) {
+      case ("GET", "/getUserData", _) {
         let authHeader = getHeader(headers, "authorization");
         switch (authHeader) {
           case null {
@@ -264,6 +292,37 @@ actor Main {
             };
           };
         };
+      };
+      case ("GET", _, true) {   
+          Debug.print("Inside requestAuth API");
+          let authHeader = getHeader(headers, "Authorization");
+          switch (authHeader) {
+            case null {
+              Debug.print("Missing Authorization header ");
+              return badRequest("Missing Authorization header");
+            };
+            case (?principalID) {
+              switch (await handleRequestAuth(principalID)) {
+                case (#ok(_)) {
+                  Debug.print("RequestAuth OK");
+                  // Constructing the JSON manually
+                  let jsonBody = "{\"status\": \"RequestAuth OK\"}";
+                  Debug.print("JSON response: " # jsonBody);
+                  return {
+                    status_code = 200;
+                    headers = [("Content-Type", "application/json"), ("X-Auth-Status", "OK")];
+                    body = Text.encodeUtf8(jsonBody);
+                    streaming_strategy = null;
+                    upgrade = null;
+                  };
+                };
+                case (#err(errorMsg)) {
+                   Debug.print("RequestAuth ERROR");
+                  return badRequest(errorMsg);
+                };
+              };
+            };
+          };
       };
       case _ {
         return notFound();

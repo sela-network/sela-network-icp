@@ -6,7 +6,7 @@ import Int "mo:base/Int";
 import Result "mo:base/Result";
 import CanDB "mo:candb/CanDB";
 import Error "mo:base/Error";
-import Random "../utils/Random";
+import Random "../common/utils";
 import Entity "mo:candb/Entity";
 import Debug "mo:base/Debug";
 import Array "mo:base/Array";
@@ -17,7 +17,7 @@ import Char "mo:base/Char";
 import Nat32 "mo:base/Nat32";
 
 import DatabaseOps "./modules/database_ops";
-import HttpHandler "./modules/http_handler";
+import HttpHandler "../common/http_handler";
 
 actor {
     private let DEAD_TIMEOUT : Int = 3_600_000_000_000; // 1 hour in nanoseconds
@@ -328,6 +328,28 @@ actor {
                             #err("Error unwrapping client data");
                         };
                     };
+                };
+            };
+        } catch (error) {
+            Debug.print("Error in get function: " # Error.message(error));
+            #err("Failed to get user: " # Error.message(error));
+        };
+    };
+
+    public shared query func clientAuthorization(user_principal_id : Text) : async Result.Result<Text, Text> {
+        Debug.print("Attempting to get client with user_principal_id: " # user_principal_id);
+
+        try {
+            let existingClient = CanDB.get(clientDB, { pk = "clientTable"; sk = user_principal_id });
+
+            switch (existingClient) {
+                case null {
+                    Debug.print("Client not found for user_principal_id: " # user_principal_id);
+                    #err("Client not found");
+                };
+                case (?entity) {
+                    Debug.print("Client found in DB with user_principal_id: " # user_principal_id);
+                    #ok("OK");
                 };
             };
         } catch (error) {
@@ -724,8 +746,8 @@ actor {
                             let jsonResponse = "{" #
                                 "\"message\": \"Client internet speed updated successfully\"," #
                                 "\"user_principal_id\": \"" # user_principal_id # "\"," #
-                                "\"state\": \"udated\"," #
-                                "\"Status\": OK" #
+                                "\"state\": \"updated\"," #
+                                "\"status\": \"OK\"" #
                             "}";
                             #ok(jsonResponse);
                         };
@@ -734,8 +756,8 @@ actor {
                     let jsonResponse = "{" #
                         "\"message\": \"Client internet speed updated successfully\"," #
                         "\"user_principal_id\": \"" # user_principal_id # "\"," #
-                        "\"state\": \"udated\"," #
-                        "\"Status\": OK" #
+                        "\"state\": \"updated\"," #
+                        "\"status\": \"OK\"" #
                     "}";
                     #ok(jsonResponse);
                 };

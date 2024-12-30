@@ -4,10 +4,10 @@ import Debug "mo:base/Debug";
 import Result "mo:base/Result";
 import CanDB "mo:candb/CanDB";
 import Error "mo:base/Error";
-import HTTP "../utils/Http";
+import HTTP "../common/Http";
 import Entity "mo:candb/Entity";
 import Float "mo:base/Float";
-import Random "../utils/Random";
+import Random "../common/utils";
 
 actor Main {
 
