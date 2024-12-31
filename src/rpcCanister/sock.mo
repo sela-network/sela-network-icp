@@ -351,31 +351,33 @@ actor class WebSocket() {
             return #err("Request authentication failed: " # msg_data.user_principal_id);
         };
 
-        let responseMessage = "";
+        var responseMessage = "";
 
         // Check the operation first
         let dbResponse = switch (msg_data.text) {
             case "PING" {
                 Debug.print("Client connect open");
-                let responseMessage = "{" #
+                responseMessage := "{" #
                     "\"message\": \"Client connect open\"," #
                     "\"user_principal_id\": \"" # msg_data.user_principal_id # "\"," #
                     "\"state\": \"Connected\"," #
-                    "\"status\": \"OK\"," #
+                    "\"status\": \"OK\"" #
                 "}";
             };
-            case "message" {
+            case "message" {//job scrape data
                 Debug.print("Client sending message - update job status");
-                let responseMessage = "{" #
+                responseMessage := "{" #
                     "\"message\": \"Client send message\"," #
                     "\"state\": \"Connected\"," #
-                    "\"status\": \"OK\"," #
+                    "\"status\": \"OK\"" #
                 "}";
             };
             case _ {
                 return #err("Unsupported message type: " # msg_data.text);
             };
         };
+
+        Debug.print("responseMessage: " # responseMessage);
 
         let cborValue_response : Types.Value = #majorType5([
             (#majorType3("data"), #majorType3(responseMessage))

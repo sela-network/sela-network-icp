@@ -3,9 +3,6 @@
     "nodeCanisterSock": {
       "main": "src/nodeCanister/sock.mo",
       "type": "motoko",
-      "http": {
-        "port": 4943
-      },
       "declarations": {
         "output": "src/declarations/nodeCanisterSock",
         "node_compatibility": true
@@ -14,9 +11,6 @@
     "nodeCanisterWebSocketCanister": {
       "main": "src/nodeCanister/canister.mo",
       "type": "motoko",
-      "http": {
-        "port": 4943
-      },
       "declarations": {
         "output": "src/declarations/nodeCanisterWebSocketCanister",
         "node_compatibility": true
@@ -25,9 +19,6 @@
     "nodeCanisterLib": {
       "main": "src/nodeCanister/lib.mo",
       "type": "motoko",
-      "http": {
-        "port": 4943
-      },
       "declarations": {
         "output": "src/declarations/nodeCanisterLib",
         "node_compatibility": true

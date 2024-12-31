@@ -6,12 +6,8 @@ import Sock "canister:nodeCanisterSock";
 import Canister "canister:nodeCanisterWebSocketCanister";
 import Debug "mo:base/Debug";
 import Decoder "mo:cbor/Decoder";
-import HttpHandler "../common/http_handler";
 
 actor {
-
-    type HttpRequest = HttpHandler.HttpRequest;
-    type HttpResponse = HttpHandler.HttpResponse;
 
     // Type definitions
     public type WebsocketMessage = {
