@@ -71,9 +71,7 @@ pub async fn ws_get_client_key(
         .await
         .unwrap();
 
-    println!(" ws_get_client_key res: {:?}", res);  
     println!(" client_id: {:?}", client_id);  
-    println!(" canister_id: {:?}", canister_id);  
 
     PublicKey::from_slice(&Decode!(&res, Vec<u8>).map_err(|e| e.to_string()).unwrap()).unwrap()
 }
@@ -86,8 +84,6 @@ pub async fn ws_open(agent: &Agent, canister_id: &Principal, msg: Vec<u8>, sig: 
         .call_and_wait()
         .await
         .expect("Failed to call ws_open");
-
-    println!(" ws_open res: {:?}", response);
 
     // Convert response to String
     String::from_utf8(response)

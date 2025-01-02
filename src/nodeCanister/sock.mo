@@ -290,6 +290,42 @@ actor class WebSocket(dbCanisterId: Principal) {
         return await db.clientAuthorization(user_principal_id);
     };
 
+    public func send_message_to_client(client_id : Nat64, user_principal_id : Text) : async Result.Result<Text, Text> {
+        Debug.print("send_message_to_client()");
+        Debug.print("user_principal_id: " # debug_show(user_principal_id));
+        Debug.print("client_id: " # debug_show(client_id));
+
+        let new_msg : AppMessage = {
+            text = "HALO";
+            data = "HALO HALO";  // Use the original data
+            user_principal_id = user_principal_id;
+        };
+
+        let cborValue : Types.Value = #majorType5([
+            (#majorType3("text"), #majorType3(new_msg.text)),
+            (#majorType3("data"), #majorType3(new_msg.data)),
+            (#majorType3("user_principal_id"), #majorType3(new_msg.user_principal_id)),
+        ]);
+
+        let msg_cbor = switch (Encoder.encode(cborValue)) {
+            case (#ok(bytes)) { Blob.fromArray(bytes) };
+            case (#err(e)) { 
+                Debug.print("Error encoding CBOR: " # debug_show(e));
+                return #err("Error encoding CBOR: " # debug_show(e));
+            };
+        };
+
+        let wsResponse = await send_message_from_canister(client_id, msg_cbor, new_msg);
+        switch (wsResponse) {
+            case (#ok(jsonResponse)) {
+                #ok(jsonResponse)  // Wrap response in #ok variant
+            };
+            case (#err(error)) {
+                #err(error)
+            };
+        };
+    };
+
     public func send_message_from_canister(client_id : Nat64, msg : Blob, msg_data : AppMessage) : async Result.Result<Text, Text> {
         Debug.print("send_message_from_canister()");
         Debug.print("user_principal_id: " # debug_show(msg_data.user_principal_id));
@@ -307,6 +343,16 @@ actor class WebSocket(dbCanisterId: Principal) {
                 Debug.print("Client sending message - update internet speed");
                 let clientIdInt : Int = Int.abs(Nat64.toNat(client_id));
                 await db.updateClientInternetSpeed(msg_data.user_principal_id, msg_data.data);
+            };
+            case "HALO" {
+                Debug.print("Received HALO message");
+                let haloResponse = "{" #
+                    "\"message\": \"HALO received\"," #
+                    "\"user_principal_id\": \"" # msg_data.user_principal_id # "\"," #
+                    "\"status\": \"OK\"," #
+                    "\"data\": \"Sending message to client - HALO HALO\"" #
+                "}";
+                #ok(haloResponse)
             };
             case "message" {
                 Debug.print("Client sending message - update job status");

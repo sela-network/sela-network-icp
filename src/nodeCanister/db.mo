@@ -861,6 +861,7 @@ actor {
                             let jsonResponse = "{" #
                                 "\"message\": \"New client, Client ID updated in DB\"," #
                                 "\"user_principal_id\": \"" # user_principal_id # "\"," #
+                                "\"client_id\": \"" # Int.toText(client_id) # "\"," #
                                 "\"state\": \"waiting\"," #
                                 "\"status\": \"OK\"," #
                                 "\"jobAssigned\": false" #

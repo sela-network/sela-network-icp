@@ -79,15 +79,11 @@ impl ezsockets::SessionExt for GatewaySession {
             let content: ClientCanisterId = from_slice(&m.client_canister_id).unwrap();
             let canister_id = Principal::from_text(&content.canister_id).unwrap();
 
-            println!("Canister ID: {}", canister_id);
-
             let client_key =
                 canister_methods::ws_get_client_key(&self.agent, &canister_id, content.client_id)
                     .await;
             let sig = Signature::from_slice(&m.sig).unwrap();
             let valid = client_key.verify(&m.client_canister_id, &sig);
-
-            println!("Valid: {:?}", valid);
 
             match valid {
                 Ok(_) => {
