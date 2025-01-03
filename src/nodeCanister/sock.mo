@@ -347,6 +347,7 @@ actor class WebSocket(dbCanisterId: Principal) {
             case "HALO" {
                 Debug.print("Received HALO message");
                 let haloResponse = "{" #
+                    "\"function\": \"Notification\"," #
                     "\"message\": \"HALO received\"," #
                     "\"user_principal_id\": \"" # msg_data.user_principal_id # "\"," #
                     "\"status\": \"OK\"," #

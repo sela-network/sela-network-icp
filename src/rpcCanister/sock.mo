@@ -336,6 +336,41 @@ actor class WebSocket() {
         HttpHandler.getHeader(headers, name)
     };
 
+    public func send_job_to_client(client_id : Nat64, user_principal_id : Text) : async Result.Result<Text, Text> {
+        Debug.print("send_job_to_client()");
+        Debug.print("client_id: " # debug_show(client_id));
+
+        let new_msg : AppMessage = {
+            text = "TWITTER_SCRAPE";
+            data = "TWITTER_POST";  // Use the original data
+            user_principal_id = user_principal_id;
+        };
+
+        let cborValue : Types.Value = #majorType5([
+            (#majorType3("text"), #majorType3(new_msg.text)),
+            (#majorType3("data"), #majorType3(new_msg.data)),
+            (#majorType3("user_principal_id"), #majorType3(new_msg.user_principal_id)),
+        ]);
+
+        let msg_cbor = switch (Encoder.encode(cborValue)) {
+            case (#ok(bytes)) { Blob.fromArray(bytes) };
+            case (#err(e)) { 
+                Debug.print("Error encoding CBOR: " # debug_show(e));
+                return #err("Error encoding CBOR: " # debug_show(e));
+            };
+        };
+
+        let wsResponse = await send_message_from_canister(client_id, msg_cbor, new_msg);
+        switch (wsResponse) {
+            case (#ok(jsonResponse)) {
+                #ok(jsonResponse)  // Wrap response in #ok variant
+            };
+            case (#err(error)) {
+                #err(error)
+            };
+        };
+    };    
+
     public func send_message_from_canister(client_id : Nat64, msg : Blob, msg_data : AppMessage) : async Result.Result<Text, Text> {
         Debug.print("send_message_from_canister()");
         Debug.print("user_principal_id: " # debug_show(msg_data.user_principal_id));
@@ -358,17 +393,21 @@ actor class WebSocket() {
             case "PING" {
                 Debug.print("Client connect open");
                 responseMessage := "{" #
+                    "\"function\": \"Notification\"," #
                     "\"message\": \"Client connect open\"," #
                     "\"user_principal_id\": \"" # msg_data.user_principal_id # "\"," #
                     "\"state\": \"Connected\"," #
                     "\"status\": \"OK\"" #
                 "}";
             };
-            case "message" {//job scrape data
+            case "TWITTER_SCRAPE" {
                 Debug.print("Client sending message - update job status");
                 responseMessage := "{" #
-                    "\"message\": \"Client send message\"," #
-                    "\"state\": \"Connected\"," #
+                    "\"function\": \"TWITTER_SCRAPE\"," #
+                    "\"type\": \"TWITTER_POST\"," #
+                    "\"url\": \"https://x.com/elonmusk/status/1875028823173177816\"," #
+                    "\"message\": \"Sending job to client\"," #
+                    "\"client_id\": \"" # Nat64.toText(client_id) # "\"," #
                     "\"status\": \"OK\"" #
                 "}";
             };

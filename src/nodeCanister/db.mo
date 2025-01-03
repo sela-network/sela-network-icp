@@ -744,6 +744,7 @@ actor {
                         case (?_) {
                             Debug.print("Successfully updated internet speed for user_principal_id: " # user_principal_id);
                             let jsonResponse = "{" #
+                                "\"function\": \"Notification\"," #
                                 "\"message\": \"Client internet speed updated successfully\"," #
                                 "\"user_principal_id\": \"" # user_principal_id # "\"," #
                                 "\"state\": \"updated\"," #
@@ -754,6 +755,7 @@ actor {
                     };
 
                     let jsonResponse = "{" #
+                        "\"function\": \"Notification\"," #
                         "\"message\": \"Client internet speed updated successfully\"," #
                         "\"user_principal_id\": \"" # user_principal_id # "\"," #
                         "\"state\": \"updated\"," #
@@ -859,6 +861,7 @@ actor {
                         case (#ok(_)) {
                             Debug.print("Client added to DB for user_principal_id: " # user_principal_id);
                             let jsonResponse = "{" #
+                                "\"function\": \"Notification\"," #
                                 "\"message\": \"New client, Client ID updated in DB\"," #
                                 "\"user_principal_id\": \"" # user_principal_id # "\"," #
                                 "\"client_id\": \"" # Int.toText(client_id) # "\"," #
@@ -882,6 +885,7 @@ actor {
                     switch (updateClient) {
                         case (#ok()) {
                             let jsonResponse = "{" #
+                                "\"function\": \"Notification\"," #
                                 "\"message\": \"Client ID updated in DB\"," #
                                 "\"user_principal_id\": \"" # user_principal_id # "\"," #
                                 "\"state\": \"waiting\"," #
