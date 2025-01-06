@@ -401,6 +401,17 @@ actor class WebSocket() {
                 "}";
             };
             case "TWITTER_SCRAPE" {
+                Debug.print("Sending message to client - new job available");
+                responseMessage := "{" #
+                    "\"function\": \"TWITTER_SCRAPE\"," #
+                    "\"type\": \"TWITTER_POST\"," #
+                    "\"url\": \"https://x.com/elonmusk/status/1875028823173177816\"," #
+                    "\"message\": \"Sending job to client\"," #
+                    "\"client_id\": \"" # Nat64.toText(client_id) # "\"," #
+                    "\"status\": \"OK\"" #
+                "}";
+            };
+            case "TWITTER_SCRAPE_RESULT" {
                 Debug.print("Client sending message - update job status");
                 responseMessage := "{" #
                     "\"function\": \"TWITTER_SCRAPE\"," #
@@ -408,6 +419,7 @@ actor class WebSocket() {
                     "\"url\": \"https://x.com/elonmusk/status/1875028823173177816\"," #
                     "\"message\": \"Sending job to client\"," #
                     "\"client_id\": \"" # Nat64.toText(client_id) # "\"," #
+                    "\"data\": \"" # msg_data.data # "\"," #
                     "\"status\": \"OK\"" #
                 "}";
             };
