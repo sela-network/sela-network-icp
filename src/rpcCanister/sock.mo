@@ -414,12 +414,11 @@ actor class WebSocket() {
             case "TWITTER_SCRAPE_RESULT" {
                 Debug.print("Client sending message - update job status");
                 responseMessage := "{" #
-                    "\"function\": \"TWITTER_SCRAPE\"," #
+                    "\"function\": \"NOTIFICATION\"," #
                     "\"type\": \"TWITTER_POST\"," #
-                    "\"url\": \"https://x.com/elonmusk/status/1875028823173177816\"," #
                     "\"message\": \"Job completed\"," #
+                    "\"data\": \"{}\"," #
                     "\"client_id\": \"" # Nat64.toText(client_id) # "\"," #
-                    "\"data\": \"" # msg_data.data # "\"," #
                     "\"status\": \"OK\"" #
                 "}";
             };
