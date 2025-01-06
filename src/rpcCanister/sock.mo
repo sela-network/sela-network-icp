@@ -417,7 +417,7 @@ actor class WebSocket() {
                     "\"function\": \"TWITTER_SCRAPE\"," #
                     "\"type\": \"TWITTER_POST\"," #
                     "\"url\": \"https://x.com/elonmusk/status/1875028823173177816\"," #
-                    "\"message\": \"Sending job to client\"," #
+                    "\"message\": \"Job completed\"," #
                     "\"client_id\": \"" # Nat64.toText(client_id) # "\"," #
                     "\"data\": \"" # msg_data.data # "\"," #
                     "\"status\": \"OK\"" #
