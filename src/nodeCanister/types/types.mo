@@ -11,8 +11,15 @@ module {
 		client_id : Int;
 		jobID : Text;
 		jobStatus : Text;
+		downloadSpeed : Float;
+		ping : Int;
 		wsConnect : Int;
 		wsDisconnect : Int;
+		jobStartTime : Int;
+		jobEndTime : Int;
+		latestReward: Float;
+		balance: Float;
+		referralCode: Text;
 	};
 
 	public type JobStruct = {
@@ -24,6 +31,7 @@ module {
 		user_principal_id : Text;
 		assignedAt : Int;
 		completeAt : Int;
+		reward: Float;
 	};
 
 	public type DatabaseError = {
@@ -54,10 +62,14 @@ module {
 	};
 
 	public type DBInterface = actor {
+        login : shared (Text) -> async Result.Result<ClientStruct, Text>;
         clientConnect : shared (Text, Int) -> async Result.Result<Text, Text>;
         clientDisconnect : shared (Int) -> async Text;
         updateJobCompleted : shared (Text, Int, Text) -> async Result.Result<Text, Text>;
         updateClientInternetSpeed : shared (Text, Text) -> async Result.Result<Text, Text>;
         clientAuthorization : shared (Text) -> async Result.Result<Text, Text>;
+        addJobToDB : shared (Text, Text) -> async Result.Result<Text, Text>;
+        assignJobToClient : shared (Text, Int) -> async Result.Result<Text, Text>;
+		findAndAssignJob : shared () -> async ?{user_principal_id : Text; client_id : Int; downloadSpeed : Float}
     };
 }

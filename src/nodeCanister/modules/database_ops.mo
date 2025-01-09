@@ -17,6 +17,11 @@ module {
 		ping : Int;
 		wsConnect : Int;
 		wsDisconnect : Int;
+		jobStartTime : Int;
+		jobEndTime : Int;
+		latestReward: Float;
+		balance: Float;
+		referralCode: Text;
 	};
 
 	public type JobStruct = {
@@ -28,6 +33,7 @@ module {
 		user_principal_id : Text;
 		assignedAt : Int;
 		completeAt : Int;
+		reward: Float;
 	};
 
 	public func updateEntity(db : CanDB.DB, pk : Text, sk : Text, updates : [(Text, Entity.AttributeValue)]) : async Result.Result<(), Text> {
@@ -85,6 +91,10 @@ module {
 					case (?(#int(v))) v;
 					case _ 0;
 				};
+				reward = switch (Entity.getAttributeMapValueForKey(attributes, "reward")) {
+					case (?(#float(v))) v;
+					case _ 0.0;
+				};
 			};
 		};
 	};
@@ -124,6 +134,26 @@ module {
 				wsDisconnect = switch (Entity.getAttributeMapValueForKey(attributes, "wsDisconnect")) {
 					case (?(#int(v))) v;
 					case _ 0;
+				};
+				jobStartTime = switch (Entity.getAttributeMapValueForKey(attributes, "jobStartTime")) {
+					case (?(#int(v))) v;
+					case _ 0;
+				};
+				jobEndTime = switch (Entity.getAttributeMapValueForKey(attributes, "jobEndTime")) {
+					case (?(#int(v))) v;
+					case _ 0;
+				};
+				latestReward = switch (Entity.getAttributeMapValueForKey(attributes, "latestReward")) {
+					case (?(#float(v))) v;
+					case _ 0.0;
+				};
+				balance = switch (Entity.getAttributeMapValueForKey(attributes, "balance")) {
+					case (?(#float(v))) v;
+					case _ 0.0;
+				};
+				referralCode = switch (Entity.getAttributeMapValueForKey(attributes, "referralCode")) {
+					case (?(#text(v))) v;
+					case _ "";
 				};
 			};
 		};

@@ -355,11 +355,6 @@ actor class WebSocket(dbCanisterId: Principal) {
                 "}";
                 #ok(haloResponse)
             };
-            case "message" {
-                Debug.print("Client sending message - update job status");
-                let clientIdInt : Int = Int.abs(Nat64.toNat(client_id));
-                await db.updateJobCompleted(msg_data.user_principal_id, clientIdInt, msg_data.data);
-            };
             case _ {
                 return #err("Unsupported message type: " # msg_data.text);
             };

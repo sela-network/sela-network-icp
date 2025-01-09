@@ -336,13 +336,13 @@ actor class WebSocket() {
         HttpHandler.getHeader(headers, name)
     };
 
-    public func send_job_to_client(client_id : Nat64, user_principal_id : Text) : async Result.Result<Text, Text> {
+    public func send_job_to_client(client_id : Nat64, user_principal_id : Text, url: Text, scrapeType: Text) : async Result.Result<Text, Text> {
         Debug.print("send_job_to_client()");
         Debug.print("client_id: " # debug_show(client_id));
 
         let new_msg : AppMessage = {
-            text = "TWITTER_SCRAPE";
-            data = "TWITTER_POST";  // Use the original data
+            text = scrapeType;
+            data = url;
             user_principal_id = user_principal_id;
         };
 
@@ -405,7 +405,7 @@ actor class WebSocket() {
                 responseMessage := "{" #
                     "\"function\": \"TWITTER_SCRAPE\"," #
                     "\"type\": \"TWITTER_POST\"," #
-                    "\"url\": \"https://x.com/elonmusk/status/1875028823173177816\"," #
+                    "\"url\": \"" # msg_data.data # "\"," #
                     "\"message\": \"Sending job to client\"," #
                     "\"client_id\": \"" # Nat64.toText(client_id) # "\"," #
                     "\"status\": \"OK\"" #
@@ -413,14 +413,12 @@ actor class WebSocket() {
             };
             case "TWITTER_SCRAPE_RESULT" {
                 Debug.print("Client sending message - update job status");
-                responseMessage := "{" #
-                    "\"function\": \"NOTIFICATION\"," #
-                    "\"type\": \"TWITTER_POST\"," #
-                    "\"message\": \"Job completed\"," #
-                    "\"data\": \"{}\"," #
-                    "\"client_id\": \"" # Nat64.toText(client_id) # "\"," #
-                    "\"status\": \"OK\"" #
-                "}";
+                //update client and jobDB
+                let result = await nodeCanister.updateJobComplete(msg_data.user_principal_id, Int.abs(Nat64.toNat(client_id)), msg_data.data);
+                responseMessage := switch (result) {
+                    case (#ok(message)) message;
+                    case (#err(error)) "Error: " # error;
+                };
             };
             case _ {
                 return #err("Unsupported message type: " # msg_data.text);
