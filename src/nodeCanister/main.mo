@@ -104,7 +104,7 @@ shared(installer) actor class canister(dbCanisterId: Principal) = this {
                     "\"message\": \"Getting client data\"," #
                     "\"user_principal_id\": \"" # userData.user_principal_id # "\"," #
                     "\"balance\": \"" # Float.toText(userData.balance) # "\"," #
-                    "\"todaysEarnings\": \"" # Float.toText(userData.latestReward) # "\"," #
+                    "\"todaysEarnings\": \"" # Float.toText(userData.todaysEarnings) # "\"," #
                     "\"referralCode\": \"" # userData.referralCode # "\"," #
                     "\"state\": \"waiting\"," #
                     "\"status\": \"OK\"," #

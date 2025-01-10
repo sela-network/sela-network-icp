@@ -19,7 +19,7 @@ module {
 		wsDisconnect : Int;
 		jobStartTime : Int;
 		jobEndTime : Int;
-		latestReward: Float;
+		todaysEarnings: Float;
 		balance: Float;
 		referralCode: Text;
 	};
@@ -143,7 +143,7 @@ module {
 					case (?(#int(v))) v;
 					case _ 0;
 				};
-				latestReward = switch (Entity.getAttributeMapValueForKey(attributes, "latestReward")) {
+				todaysEarnings = switch (Entity.getAttributeMapValueForKey(attributes, "todaysEarnings")) {
 					case (?(#float(v))) v;
 					case _ 0.0;
 				};

@@ -69,7 +69,7 @@ actor {
                 ("wsDisconnect", #int(0)),
                 ("jobStartTime", #int(0)),
                 ("jobEndTime", #int(0)),
-                ("latestReward", #float(0.0)),
+                ("todaysEarnings", #float(0.0)),
                 ("balance", #float(0.0)),
                 ("referralCode", #text(referralCode)),
             ];
@@ -225,7 +225,7 @@ actor {
                     switch (updatedJobResult) {
                         case (#ok()) {
                             // Update client state to idle
-                            let (jobStartTime, balance) = switch (clientEntity) {
+                            let (jobStartTime, balance, todaysEarnings) = switch (clientEntity) {
                                 case (?entity) {
                                     (
                                         switch (Entity.getAttributeMapValueForKey(entity.attributes, "jobStartTime")) {
@@ -235,13 +235,22 @@ actor {
                                         switch (Entity.getAttributeMapValueForKey(entity.attributes, "balance")) {
                                             case (?(#float(v))) v;
                                             case _ 0.0;
+                                        },
+                                        switch (Entity.getAttributeMapValueForKey(entity.attributes, "todaysEarnings")) {
+                                            case (?(#float(v))) v;
+                                            case _ 0.0;
                                         }
                                     );
                                 };
-                                case null (0, 0.0);
+                                case null (0, 0.0, 0.0);
                             };
 
                             let endTime = Time.now();
+
+                            let currentTime = getCurrentTime();
+                            let currentDayStart = getStartOfDay(currentTime);
+
+                            let endOfDay = getEndOfDay(currentTime);
 
                             // Calculate the points
                             let timeDifferenceNanos : Int = endTime - jobStartTime;
@@ -249,13 +258,26 @@ actor {
                             let rewardPoints : Float = 0.012 * timeDifferenceSeconds;
                             let totalBalance : Float = balance + rewardPoints;
 
+                            Debug.print("currentTime: " # debug_show(currentTime));
+                            Debug.print("currentDayStart: " # debug_show(currentDayStart));
+                            Debug.print("endOfDay: " # debug_show(endOfDay));
+
+                            let newDailyEarnings = if (currentDayStart > endOfDay) {
+                                // It's a new day, reset earnings
+                                Debug.print("It's a new day, reset earnings: ");
+                                rewardPoints
+                            } else {
+                                Debug.print("accumulating earnings: ");
+                                todaysEarnings + rewardPoints
+                            };
+
                             Debug.print("jobStartTime: " # debug_show(jobStartTime));
                             Debug.print("endTime: " # debug_show(endTime));
                             Debug.print("Job duration (seconds): " # debug_show(timeDifferenceSeconds));
                             Debug.print("Reward points: " # debug_show(rewardPoints));
                             Debug.print("New total balance: " # debug_show(totalBalance));
 
-                            let updatedClientResult = await updateClientStateWithRewards(user_principal_id, "", "notWorking", jobStartTime, endTime, rewardPoints, totalBalance);
+                            let updatedClientResult = await updateClientStateWithRewards(user_principal_id, "", "notWorking", jobStartTime, endTime, newDailyEarnings, totalBalance);
 
                             switch (updatedClientResult) {
                                 case (#ok()) {
@@ -544,7 +566,7 @@ actor {
         jobStatus : Text, 
         jobStartTime : Int,
         jobEndTime : Int,
-        latestRewards : Float,
+        todaysEarnings : Float,
         balance : Float) : async Result.Result<(), Text> {
         Debug.print("Attempting to update client with rewards info with user_principal_id: " # user_principal_id);
 
@@ -560,7 +582,7 @@ actor {
                         ("jobStatus", #text(jobStatus)),
                         ("jobStartTime", #int(jobStartTime)),
                         ("jobEndTime", #int(jobEndTime)),
-                        ("latestReward", #float(latestRewards)),
+                        ("todaysEarnings", #float(todaysEarnings)),
                         ("balance", #float(balance)),
                     ];
 
@@ -1266,6 +1288,20 @@ actor {
         );
 
         return entityWithMaxSpeed;
+    };
+
+    // Function to get the current time in UTC
+    func getCurrentTime() : Int {
+        Time.now() / 1_000_000_000
+    };
+
+    // Function to get the start of the day for a given timestamp
+    func getStartOfDay(timestamp : Int) : Int {
+        timestamp - (timestamp % 86400)
+    };
+
+    func getEndOfDay(timestamp : Int) : Int {
+        getStartOfDay(timestamp) + 86399 // Last second of the day
     };
 
     // =============== Maintenance Tasks ===============

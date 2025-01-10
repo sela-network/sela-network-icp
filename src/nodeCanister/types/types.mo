@@ -17,7 +17,7 @@ module {
 		wsDisconnect : Int;
 		jobStartTime : Int;
 		jobEndTime : Int;
-		latestReward: Float;
+		todaysEarnings: Float;
 		balance: Float;
 		referralCode: Text;
 	};
