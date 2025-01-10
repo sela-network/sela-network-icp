@@ -27,7 +27,6 @@ module {
 		jobType : Text;
 		target : Text;
 		state : Text;
-		result : Text;
 		user_principal_id : Text;
 		assignedAt : Int;
 		completeAt : Int;
@@ -63,9 +62,10 @@ module {
 
 	public type DBInterface = actor {
         login : shared (Text) -> async Result.Result<ClientStruct, Text>;
+		getUserRewardHistory : shared (Text) -> async Result.Result<[JobStruct], Text>;
         clientConnect : shared (Text, Int) -> async Result.Result<Text, Text>;
         clientDisconnect : shared (Int) -> async Text;
-        updateJobCompleted : shared (Text, Int, Text) -> async Result.Result<Text, Text>;
+        updateJobCompleted : shared (Text, Int) -> async Result.Result<Text, Text>;
         updateClientInternetSpeed : shared (Text, Text) -> async Result.Result<Text, Text>;
         clientAuthorization : shared (Text) -> async Result.Result<Text, Text>;
         addJobToDB : shared (Text, Text) -> async Result.Result<Text, Text>;

@@ -91,7 +91,6 @@ actor {
                 ("jobType", #text(jobType)), // Job type
                 ("url", #text(url)), // Job url (like scrape twitter, etc.)
                 ("state", #text("pending")), // Default state is "pending"
-                ("result", #text("")), // Empty result initially (empty JSON object)
                 ("user_principal_id", #text("")), // Initially, no client is assigned
                 ("assignedAt", #int(0)),
                 ("completeAt", #int(0)), // Initially, not completed (can use 0 or null)
@@ -167,7 +166,7 @@ actor {
         };
     };
 
-    public shared func updateJobCompleted(user_principal_id : Text, client_id : Int, result : Text) : async Result.Result<Text, Text> {
+    public shared func updateJobCompleted(user_principal_id : Text, client_id : Int) : async Result.Result<Text, Text> {
         Debug.print("Request sent by user_principal_id to mark job as completed: " # user_principal_id);
         Debug.print("Attempting to fetch jobID");
 
@@ -220,7 +219,7 @@ actor {
                     };
 
                     // Update job state to completed
-                    let updatedJobResult = await updateJobState(jobID, user_principal_id, "completed", assignedAt, Time.now(), result);
+                    let updatedJobResult = await updateJobState(jobID, user_principal_id, "completed", assignedAt, Time.now());
 
                     switch (updatedJobResult) {
                         case (#ok()) {
@@ -277,6 +276,16 @@ actor {
                             Debug.print("Reward points: " # debug_show(rewardPoints));
                             Debug.print("New total balance: " # debug_show(totalBalance));
 
+                            let updatingJobWithRewards = await updateJobStateWithRewards(jobID, rewardPoints);
+                            switch (updatingJobWithRewards) {
+                                case (#ok()) {
+                                    Debug.print("jobDB updated with rewards: ");
+                                };
+                                 case (#err(_)) {
+                                    Debug.print("Failed to update jobDB with rewards: ");
+                                 }
+                            };
+                            
                             let updatedClientResult = await updateClientStateWithRewards(user_principal_id, "", "notWorking", jobStartTime, endTime, newDailyEarnings, totalBalance);
 
                             switch (updatedClientResult) {
@@ -508,7 +517,7 @@ actor {
                     let jobID = job.sk;
 
                     // Update job state to ongoing
-                    let updatedJobResult = await updateJobState(jobID, user_principal_id, "ongoing", Time.now(), 0, "");
+                    let updatedJobResult = await updateJobState(jobID, user_principal_id, "ongoing", Time.now(), 0);
 
                     switch (updatedJobResult) {
                         case (#ok()) {
@@ -543,7 +552,7 @@ actor {
                                 };
                                 case (#err(errorMsg)) {
                                     // Revert job state if client update fails
-                                    ignore updateJobState(jobID, user_principal_id, "pending", 0, 0, "");
+                                    ignore updateJobState(jobID, user_principal_id, "pending", 0, 0);
                                     #err("Failed to update client state: " # errorMsg);
                                 };
                             };
@@ -701,8 +710,7 @@ actor {
         user_principal_id : Text, 
         newState : Text, 
         assignedAt : Int, 
-        completeAt : Int, 
-        result: Text) : async Result.Result<(), Text> {
+        completeAt : Int) : async Result.Result<(), Text> {
         Debug.print("Attempting to update job info with jobID: " # jobID);
 
         try {
@@ -711,7 +719,51 @@ actor {
                 ("assignedAt", #int(assignedAt)),
                 ("completeAt", #int(completeAt)),
                 ("user_principal_id", #text(user_principal_id)),
-                ("result", #text(result)),
+            ];
+
+            func updateAttributes(attributeMap : ?Entity.AttributeMap) : Entity.AttributeMap {
+                switch (attributeMap) {
+                    case null {
+                        Entity.createAttributeMapFromKVPairs(updatedAttributes);
+                    };
+                    case (?map) {
+                        Entity.updateAttributeMapWithKVPairs(map, updatedAttributes);
+                    };
+                };
+            };
+
+            let _updated = switch (
+                CanDB.update(
+                    jobDB,
+                    {
+                        pk = "jobTable";
+                        sk = jobID;
+                        updateAttributeMapFunction = updateAttributes;
+                    },
+                )
+            ) {
+                case null {
+                    Debug.print("Failed to update job: " # jobID);
+                    #err("Failed to update job");
+                };
+                case (?_) {
+                    #ok();
+                };
+            };
+        } catch (error) {
+            Debug.print("Error caught in client update: " # Error.message(error));
+            #err("Failed to update client: " # Error.message(error));
+        };
+    };
+
+    private func updateJobStateWithRewards(
+        jobID : Text,  
+        reward: Float) : async Result.Result<(), Text> {
+        Debug.print("Attempting to update job with rewards info with jobID: " # jobID);
+
+        try {
+            let updatedAttributes = [
+                ("reward", #float(reward)),
             ];
 
             func updateAttributes(attributeMap : ?Entity.AttributeMap) : Entity.AttributeMap {
@@ -1043,6 +1095,56 @@ actor {
         };
     };
 
+    public func getUserRewardHistory(user_principal_id : Text) : async Result.Result<[JobStruct], Text> {
+        try {
+            // Validate the user_principal_id as a Principal
+            let _ = Principal.fromText(user_principal_id);
+
+            let skLowerBound = ""; // Start of the range for all keys
+            let skUpperBound = "~"; // End of the range for all keys
+            let limit = 10000; // Limit number of records to scan
+            let ascending = null; // Not specifying order
+
+            // Use CanDB.scan to retrieve all records
+            let { entities } = CanDB.scan(
+                jobDB,
+                {
+                    skLowerBound = skLowerBound;
+                    skUpperBound = skUpperBound;
+                    limit = limit;
+                    ascending = ascending;
+                },
+            );
+
+            Debug.print("Total entities: " # debug_show (entities.size()));
+            
+            let userRewards = Array.mapFilter<Entity.Entity, JobStruct>(
+                entities,
+                func(entity : Entity.Entity) : ?JobStruct {
+                    switch (unwrapJobEntity(entity)) {
+                        case (?job) {
+                            if (Text.equal(job.user_principal_id, user_principal_id) and job.reward > 0.0) {
+                                ?job
+                            } else {
+                                null
+                            }
+                        };
+                        case (null) null;
+                    }
+                }
+            );
+
+            if (Array.size(userRewards) > 0) {
+                #ok(userRewards)
+            } else {
+                #err("No reward history found for the user")
+            }
+        } catch (error) {
+            Debug.print("An unexpected error occurred: " # Error.message(error));
+            #err("An unexpected error occurred: " # Error.message(error))
+        }
+    };
+
     public func clientConnect(user_principal_id : Text, client_id : Int) : async Result.Result<Text, Text> {
 
         try {
@@ -1145,8 +1247,7 @@ actor {
                             "", 
                             "pending",
                             0, 
-                            0,
-                            ""
+                            0
                         );
 
                         let clientUpdateResult = await updateClientState(

@@ -7,6 +7,9 @@ import Entity "mo:candb/Entity";
 import Float "mo:base/Float";
 import Option "mo:base/Option";
 import DBTypes "./types/types";
+import Array "mo:base/Array";
+import Iter "mo:base/Iter";
+import Int "mo:base/Int";
 import database_ops "./modules/database_ops";
 import HTTP "../common/Http";
 import Random "../common/utils";
@@ -37,8 +40,8 @@ shared(installer) actor class canister(dbCanisterId: Principal) = this {
       return data;
    };
 
-   public func updateJobComplete(user_principal_id : Text, client_id : Int, result: Text) : async Result.Result<Text, Text>  {
-      let data = await db.updateJobCompleted(user_principal_id, client_id, result);
+   public func updateJobComplete(user_principal_id : Text, client_id : Int) : async Result.Result<Text, Text>  {
+      let data = await db.updateJobCompleted(user_principal_id, client_id);
       return data;
    };
 
@@ -52,6 +55,12 @@ shared(installer) actor class canister(dbCanisterId: Principal) = this {
     //check in DB if prinicpal ID is present
     Debug.print("Inside login");
     return await db.login(user_principal_id);
+  };
+
+  public func getUserRewardHistory(user_principal_id : Text) : async Result.Result<[database_ops.JobStruct], Text> {
+    //check in DB if prinicpal ID is present
+    Debug.print("Inside getUserRewardHistory");
+    return await db.getUserRewardHistory(user_principal_id);
   };
 
   public query func http_request(_request : HttpRequest) : async HttpResponse {

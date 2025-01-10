@@ -414,7 +414,7 @@ actor class WebSocket() {
             case "TWITTER_SCRAPE_RESULT" {
                 Debug.print("Client sending message - update job status");
                 //update client and jobDB
-                let result = await nodeCanister.updateJobComplete(msg_data.user_principal_id, Int.abs(Nat64.toNat(client_id)), msg_data.data);
+                let result = await nodeCanister.updateJobComplete(msg_data.user_principal_id, Int.abs(Nat64.toNat(client_id)));
                 responseMessage := switch (result) {
                     case (#ok(message)) message;
                     case (#err(error)) "Error: " # error;

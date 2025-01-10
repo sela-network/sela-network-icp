@@ -29,7 +29,6 @@ module {
 		jobType : Text;
 		target : Text;
 		state : Text;
-		result : Text;
 		user_principal_id : Text;
 		assignedAt : Int;
 		completeAt : Int;
@@ -72,10 +71,6 @@ module {
 					case _ "";
 				};
 				state = switch (Entity.getAttributeMapValueForKey(attributes, "state")) {
-					case (?(#text(v))) v;
-					case _ "";
-				};
-				result = switch (Entity.getAttributeMapValueForKey(attributes, "result")) {
 					case (?(#text(v))) v;
 					case _ "";
 				};
