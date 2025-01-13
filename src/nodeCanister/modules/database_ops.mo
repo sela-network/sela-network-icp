@@ -22,6 +22,7 @@ module {
 		todaysEarnings: Float;
 		balance: Float;
 		referralCode: Text;
+		totalReferral: Int;
 	};
 
 	public type JobStruct = {
@@ -149,6 +150,10 @@ module {
 				referralCode = switch (Entity.getAttributeMapValueForKey(attributes, "referralCode")) {
 					case (?(#text(v))) v;
 					case _ "";
+				};
+				totalReferral = switch (Entity.getAttributeMapValueForKey(attributes, "totalReferral")) {
+					case (?(#int(v))) v;
+					case _ 0;
 				};
 			};
 		};

@@ -115,6 +115,7 @@ shared(installer) actor class canister(dbCanisterId: Principal) = this {
                     "\"balance\": \"" # Float.toText(userData.balance) # "\"," #
                     "\"todaysEarnings\": \"" # Float.toText(userData.todaysEarnings) # "\"," #
                     "\"referralCode\": \"" # userData.referralCode # "\"," #
+                    "\"totalReferral\": \"" # Int.toText(userData.totalReferral) # "\"," #
                     "\"state\": \"waiting\"," #
                     "\"status\": \"OK\"," #
                     "\"jobAssigned\": false" #

@@ -72,6 +72,7 @@ actor {
                 ("todaysEarnings", #float(0.0)),
                 ("balance", #float(0.0)),
                 ("referralCode", #text(referralCode)),
+                ("totalReferral", #int(0)),
             ];
         };
     };

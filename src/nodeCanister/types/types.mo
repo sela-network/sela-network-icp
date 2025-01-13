@@ -20,6 +20,7 @@ module {
 		todaysEarnings: Float;
 		balance: Float;
 		referralCode: Text;
+		totalReferral: Int;
 	};
 
 	public type JobStruct = {
