@@ -400,11 +400,22 @@ actor class WebSocket() {
                     "\"status\": \"OK\"" #
                 "}";
             };
-            case "TWITTER_SCRAPE" {
+            case "TWITTER_POST" {
                 Debug.print("Sending message to client - new job available");
                 responseMessage := "{" #
                     "\"function\": \"TWITTER_SCRAPE\"," #
                     "\"type\": \"TWITTER_POST\"," #
+                    "\"url\": \"" # msg_data.data # "\"," #
+                    "\"message\": \"Sending job to client\"," #
+                    "\"client_id\": \"" # Nat64.toText(client_id) # "\"," #
+                    "\"status\": \"OK\"" #
+                "}";
+            };
+            case "TWITTER_PROFILE" {
+                Debug.print("Sending message to client - new job available");
+                responseMessage := "{" #
+                    "\"function\": \"TWITTER_SCRAPE\"," #
+                    "\"type\": \"TWITTER_PROFILE\"," #
                     "\"url\": \"" # msg_data.data # "\"," #
                     "\"message\": \"Sending job to client\"," #
                     "\"client_id\": \"" # Nat64.toText(client_id) # "\"," #
