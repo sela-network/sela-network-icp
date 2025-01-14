@@ -301,6 +301,7 @@ actor {
                                     "\"client_id\": \"" # Int.toText(client_id) # "\"," #
                                     "\"completedAt\": \"" # Int.toText(Time.now()) # "\"," #
                                     "\"balance\": \"" # Float.toText(totalBalance) # "\"," #
+                                    "\"todaysEarning\": \"" # Float.toText(newDailyEarnings) # "\"," #
                                     "\"earning\": \"" # Float.toText(rewardPoints) # "\"" #
                                     "}";
                                     Debug.print("jsonResponse: " # debug_show(jsonResponse));
@@ -1099,7 +1100,7 @@ actor {
     public func getUserRewardHistory(user_principal_id : Text) : async Result.Result<[JobStruct], Text> {
         try {
             // Validate the user_principal_id as a Principal
-            let _ = Principal.fromText(user_principal_id);
+            //let _ = Principal.fromText(user_principal_id);
 
             let skLowerBound = ""; // Start of the range for all keys
             let skUpperBound = "~"; // End of the range for all keys
