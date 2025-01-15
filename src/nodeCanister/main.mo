@@ -51,7 +51,7 @@ shared(installer) actor class canister(dbCanisterId: Principal) = this {
     return await db.clientAuthorization(user_principal_id);
   };
 
-  private func login(user_principal_id : Text) : async Result.Result<database_ops.ClientStruct, Text> {
+  public func login(user_principal_id : Text) : async Result.Result<database_ops.ClientStruct, Text> {
     //check in DB if prinicpal ID is present
     Debug.print("Inside login");
     return await db.login(user_principal_id);
