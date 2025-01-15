@@ -1,27 +1,44 @@
 import React from 'react';
 import Color from '../../style/Color';
 import { Text } from '../../component';
+import { dataset } from './data';
 
-const dataSource = [
-  {
-    key: '1',
-    epoch: 'Epoch 1',
-    date: 'DD, MM, YY ~ DD. MM. YY',
-    uptime: '00 Days, 24 Hrs, 60 Min',
-    nodeRewards: '12,204.20 SP',
-    referralRewards: '12,204.20 SP',
-    bonusReward: '12,204.20 SP',
-  },
-  {
-    key: '2',
-    epoch: 'Epoch 1',
-    date: 'DD, MM, YY ~ DD. MM. YY',
-    uptime: '00 Days, 24 Hrs, 60 Min',
-    nodeRewards: '12,204.20 SP',
-    referralRewards: '12,204.20 SP',
-    bonusReward: '12,204.20 SP',
-  },
-];
+// Function to format a single Date object to 'DD, MM, YY' or 'DD. MM. YY'
+const formatDate = (date, delimiter = '/') => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear()).slice(-2); // Get the last two digits of the year
+  return `${day}${delimiter}${month}${delimiter}${year}`;
+};
+
+// Function to format two dates in the desired format
+const formatDateRange = (startDate, endDate) => {
+  const start = formatDate(startDate, '/'); // 'DD, MM, YY'
+  const end = formatDate(endDate, '/'); // 'DD. MM. YY'
+  return `${start} ~ ${end}`;
+};
+
+const dataSource = (rewardHistories) => {
+  const data = dataset(rewardHistories);
+
+  const result = [];
+
+  var initialKey = 1;
+  data.forEach((item) => {
+    result.push({
+      key: initialKey,
+      epoch: 'Epoch 1',
+      date: formatDateRange(item.startDate, item.endDate),
+      uptime: '00 Days, 24 Hrs, 60 Min',
+      nodeRewards: `${item.node} SP`,
+      referralRewards: `${item.referral} SP`,
+      bonusReward: `${item.bonus} SP`,
+    });
+
+    initialKey += 1;
+  });
+  return result;
+};
 
 const renderColumn = ({ text, color = '#fff' }) => {
   return {

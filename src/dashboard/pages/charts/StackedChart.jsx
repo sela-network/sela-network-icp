@@ -3,10 +3,10 @@ import { BarChart } from '@mui/x-charts';
 
 import { dataset, series } from '../samples/data';
 
-export default function StackBars() {
+export default function StackBars({ rewardHistories }) {
   return (
     <BarChart
-      dataset={dataset()}
+      dataset={dataset(rewardHistories)}
       series={series}
       slotProps={{
         legend: { hidden: true },
@@ -17,7 +17,7 @@ export default function StackBars() {
       xAxis={[
         {
           scaleType: 'band',
-          dataKey: 'date',
+          dataKey: 'title',
           categoryGapRatio: 0.5,
           barGapRatio: 0.5,
         },

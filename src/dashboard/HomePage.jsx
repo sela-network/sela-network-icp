@@ -8,32 +8,51 @@ import { Layout } from 'antd';
 const { Content } = Layout;
 
 const HomePage = () => {
-  const menuItems = [
-    {
-      leftIcon: 'sela',
-      text: 'Dashboard',
-      children: <Dashboard />,
-    },
-    {
-      leftIcon: 'history',
-      text: 'Reward History',
-      children: <RewardHistory />,
-    },
-    { leftIcon: 'gift', text: 'Reward Program', children: <RewardProgram /> },
-  ];
+  const [menuItems, setMenuItems] = useState([]);
+  const [selectedMenu, setSelectedMenu] = useState({
+    leftIcon: 'sela',
+    text: 'Dashboard',
+    children: <Dashboard />,
+  });
+  const { nodeActor, logout } = useAuth();
 
-  const [selectedMenu, setSelectedMenu] = useState(menuItems[0]);
-  const { whoamiActor, logout } = useAuth();
   const [principalId, setPrincipalId] = useState(null);
   const [userData, setUserData] = useState({});
+
+  const [rewardHistories, setRewardHistories] = useState([]);
+
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
     const getPrincipalId = async () => {
-      const whoami = await whoamiActor.whoami();
+      const whoami = await nodeActor.whoami();
       setPrincipalId(whoami);
 
-      const userData = await whoamiActor.getUserData(whoami.toText());
+      const rewardHistories = await nodeActor.getUserRewardHistory(
+        whoami.toText()
+      );
+      setRewardHistories(rewardHistories.ok);
+      console.log(rewardHistories.ok);
+
+      setMenuItems([
+        {
+          leftIcon: 'sela',
+          text: 'Dashboard',
+          children: <Dashboard rewardHistories={rewardHistories.ok} />,
+        },
+        {
+          leftIcon: 'history',
+          text: 'Reward History',
+          children: <RewardHistory rewardHistories={rewardHistories.ok} />,
+        },
+        {
+          leftIcon: 'gift',
+          text: 'Reward Program',
+          children: <RewardProgram />,
+        },
+      ]);
+
+      const userData = await nodeActor.login(whoami.toText());
       setUserData(userData.ok);
     };
 
@@ -85,6 +104,7 @@ const HomePage = () => {
                 <Dashboard
                   handleMoreClick={handleMoreClick}
                   userData={userData}
+                  rewardHistories={rewardHistories}
                 />
               ) : (
                 selectedMenu.children

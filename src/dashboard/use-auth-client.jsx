@@ -1,6 +1,6 @@
 import { AuthClient } from '@dfinity/auth-client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { canisterId, createActor } from '../declarations/backend';
+import { canisterId, createActor } from '../declarations/nodeCanister';
 import {
   Ed25519PublicKey,
   ECDSAKeyIdentity,
@@ -58,7 +58,7 @@ export const useAuthClient = (options = defaultOptions) => {
   const [authClient, setAuthClient] = useState(null);
   const [identity, setIdentity] = useState(null);
   const [principal, setPrincipal] = useState(null);
-  const [whoamiActor, setWhoamiActor] = useState(null);
+  const [nodeActor, setNodeActor] = useState(null);
 
   // For Client Redirection
   const [searchParams, setSearchParams] = useSearchParams();
@@ -108,11 +108,14 @@ export const useAuthClient = (options = defaultOptions) => {
 
     const principal = identity.getPrincipal();
 
-    const actor = createActor(canisterId, {
-      agentOptions: {
-        identity,
-      },
-    });
+    const actor = createActor(
+      canisterId ? canisterId : process.env.CANISTER_ID_BACKEND,
+      {
+        agentOptions: {
+          identity,
+        },
+      }
+    );
 
     const sessionKey = searchParams.get('sessionkey');
     if (sessionKey) {
@@ -149,7 +152,7 @@ export const useAuthClient = (options = defaultOptions) => {
       setPrincipal(principal);
 
       setAuthClient(client);
-      setWhoamiActor(actor);
+      setNodeActor(actor);
     }
   }
 
@@ -165,7 +168,7 @@ export const useAuthClient = (options = defaultOptions) => {
     authClient,
     identity,
     principal,
-    whoamiActor,
+    nodeActor,
   };
 };
 

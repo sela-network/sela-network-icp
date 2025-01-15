@@ -8,7 +8,7 @@ import iiLogo from '../assets/images/ii_powered.png';
 
 import { dataSource, columns } from './samples/history';
 
-const RewardHistory = () => {
+const RewardHistory = ({ rewardHistories }) => {
   const { styles } = useStyle();
 
   const Header = () => {
@@ -43,7 +43,7 @@ const RewardHistory = () => {
         <TableConfig>
           <Table
             className={styles.customTable}
-            dataSource={dataSource}
+            dataSource={dataSource(rewardHistories)}
             columns={columns}
             pagination={false}
             bordered={false}

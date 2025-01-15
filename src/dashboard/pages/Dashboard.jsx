@@ -6,7 +6,7 @@ import StackedChart from './charts/StackedChart';
 import { Button, Alert } from 'antd';
 import Color from '../style/Color';
 
-const Dashboard = ({ handleMoreClick, userData }) => {
+const Dashboard = ({ handleMoreClick, userData, rewardHistories }) => {
   const [showCopyAlert, setShowCopyAlert] = useState(false);
 
   const BalanceContainer = ({ title, value, flex }) => {
@@ -51,7 +51,7 @@ const Dashboard = ({ handleMoreClick, userData }) => {
             <Text children="More" size={14} weight="semiBold" color="#000" />
           </Button>
         </Row>
-        <StackedChart />
+        <StackedChart rewardHistories={rewardHistories} />
       </Container>
     );
   };
