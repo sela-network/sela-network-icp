@@ -32,7 +32,6 @@ const HomePage = () => {
         whoami.toText()
       );
       setRewardHistories(rewardHistories.ok);
-      console.log(rewardHistories.ok);
 
       setMenuItems([
         {
